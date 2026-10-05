@@ -89,6 +89,20 @@ export default function AppShell({
     };
   }, [router]);
 
+  /* Remember which projects were opened last, for the Recent list on Home. */
+  useEffect(() => {
+    const match = /^\/p\/([^/]+)/.exec(pathname);
+    if (!match) return;
+    try {
+      const key = "jefi:recent-projects";
+      const ids = JSON.parse(window.localStorage.getItem(key) ?? "[]") as string[];
+      const next = [match[1], ...ids.filter((id) => id !== match[1])].slice(0, 12);
+      window.localStorage.setItem(key, JSON.stringify(next));
+    } catch {
+      /* recent projects are a convenience only */
+    }
+  }, [pathname]);
+
   async function addProject(e: React.FormEvent) {
     e.preventDefault();
     const trimmed = name.trim();
@@ -202,6 +216,17 @@ export default function AppShell({
         </div>
 
         <nav className="mt-6 flex-1 overflow-y-auto" aria-label="Projects">
+          {personal.sidebar.home && (
+            <Link
+              href="/home"
+              onClick={() => setDrawerOpen(false)}
+              className={`mb-3 flex items-center rounded-md px-2 py-2 text-sm hover:bg-current/10 ${
+                pathname === "/home" ? "nav-active font-medium" : ""
+              }`}
+            >
+              Home
+            </Link>
+          )}
           <p className="px-2 text-xs font-medium uppercase tracking-wide opacity-50">
             Projects
           </p>
@@ -301,7 +326,7 @@ export default function AppShell({
           </form>
           {error && <p className="mt-2 text-xs text-red-500">{error}</p>}
 
-          {(Object.values(personal.sidebar).some(Boolean)) && (
+          {(["inbox", "my-tasks", "docs", "sheets"] as const).some((k) => personal.sidebar[k]) && (
             <div className="mt-5 border-t border-current/10 pt-3">
               {personal.sidebar.inbox && (
                 <InboxLink

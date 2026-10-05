@@ -3,6 +3,16 @@ import { createClient } from "@/lib/supabase/server";
 
 export default async function Home() {
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const { data: mine } = user
+    ? await supabase.from("profiles").select("personal").eq("id", user.id).maybeSingle()
+    : { data: null };
+  const homeOn =
+    (mine?.personal as { sidebar?: { home?: boolean } } | null)?.sidebar?.home !== false;
+  if (homeOn) redirect("/home");
+
   const [{ data: projects }, { data: prefs }] = await Promise.all([
     supabase
       .from("projects")

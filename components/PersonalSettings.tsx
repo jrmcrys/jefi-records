@@ -56,8 +56,9 @@ export function SidebarSettings() {
     <section className="mt-8">
       <h2 className="text-sm font-medium">Sidebar pages</h2>
       <p className="mt-1 text-xs opacity-60">
-        Choose which pages show below your projects. This is for you only, and
-        turning a page off does not delete anything.
+        Choose which pages show in the sidebar. Home sits above your projects and
+        the rest sit below them. This is for you only, and turning a page off
+        does not delete anything.
       </p>
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
         {PAGE_KEYS.map((key) => (

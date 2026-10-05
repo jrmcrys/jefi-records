@@ -10,7 +10,7 @@ import PageIntro from "./PageIntro";
 
 type NotificationType = "mention" | "assigned" | "tag_comment" | "task_changed";
 
-type Row = {
+export type Row = {
   id: string;
   type: NotificationType;
   task_id: string | null;
@@ -27,10 +27,10 @@ type Row = {
   } | null;
 };
 
-const SELECT =
+export const SELECT =
   "id,type,task_id,comment_id,actor_id,read_at,created_at,data,task:tasks(id,name,project_id,project:projects(name))";
 
-function sentence(row: Row, actor: string): string {
+export function sentence(row: Row, actor: string): string {
   const tag = row.data?.tag;
   switch (row.type) {
     case "mention":

@@ -1,11 +1,12 @@
 /* Settings that belong to one person: which sidebar pages show, the intro
    text on each page, and the background music. Stored in profiles.personal. */
 
-export type PageKey = "inbox" | "my-tasks" | "docs" | "sheets";
+export type PageKey = "home" | "inbox" | "my-tasks" | "docs" | "sheets";
 
-export const PAGE_KEYS: PageKey[] = ["inbox", "my-tasks", "docs", "sheets"];
+export const PAGE_KEYS: PageKey[] = ["home", "inbox", "my-tasks", "docs", "sheets"];
 
 export const PAGE_LABELS: Record<PageKey, string> = {
+  home: "Home",
   inbox: "Inbox",
   "my-tasks": "My tasks",
   docs: "Docs",
@@ -13,6 +14,7 @@ export const PAGE_LABELS: Record<PageKey, string> = {
 };
 
 export const DEFAULT_INTRO: Record<PageKey, string> = {
+  home: "Your day at a glance, and a quick way to ask Claude about everything in Jefi Records.",
   inbox: "Mentions, assignments and comments on your tasks show up here.",
   "my-tasks": "Everything assigned to you, across all of your projects.",
   docs: "Keep your Google Doc links in one place. Rename them here, and open them inside Jefi Records or in Google. You can change the default in Settings.",
@@ -38,7 +40,21 @@ export type Music = {
   autoplay: boolean;
 };
 
+/* The blocks on the Home page that can each be turned on or off. */
+export type HomeSection = "claude" | "tasks" | "calendar" | "inbox" | "quick";
+
+export const HOME_SECTIONS: HomeSection[] = ["claude", "tasks", "calendar", "inbox", "quick"];
+
+export const HOME_LABELS: Record<HomeSection, string> = {
+  claude: "Ask Claude",
+  tasks: "Due today and overdue",
+  calendar: "Today's calendar",
+  inbox: "Unread Inbox",
+  quick: "Quick add and recent",
+};
+
 export type Personal = {
+  home: Record<HomeSection, boolean>;
   sidebar: Record<PageKey, boolean>;
   intro: Partial<Record<PageKey, string>>;
   music: Music;
@@ -52,7 +68,8 @@ export const DEFAULT_MUSIC: Music = {
 };
 
 export const DEFAULT_PERSONAL: Personal = {
-  sidebar: { inbox: true, "my-tasks": true, docs: true, sheets: true },
+  home: { claude: true, tasks: true, calendar: true, inbox: true, quick: true },
+  sidebar: { home: true, inbox: true, "my-tasks": true, docs: true, sheets: true },
   intro: {},
   music: DEFAULT_MUSIC,
 };
@@ -86,11 +103,15 @@ export function parseYouTube(input: string): string | null {
 export function parsePersonal(raw: unknown): Personal {
   const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
   const sb = (r.sidebar && typeof r.sidebar === "object" ? r.sidebar : {}) as Record<string, unknown>;
+  const hm = (r.home && typeof r.home === "object" ? r.home : {}) as Record<string, unknown>;
   const intro = (r.intro && typeof r.intro === "object" ? r.intro : {}) as Record<string, unknown>;
   const m = (r.music && typeof r.music === "object" ? r.music : {}) as Record<string, unknown>;
 
   const sidebar = { ...DEFAULT_PERSONAL.sidebar };
   for (const k of PAGE_KEYS) sidebar[k] = sb[k] !== false;
+
+  const home = { ...DEFAULT_PERSONAL.home };
+  for (const k of HOME_SECTIONS) home[k] = hm[k] !== false;
 
   const outIntro: Partial<Record<PageKey, string>> = {};
   for (const k of PAGE_KEYS) {
@@ -114,5 +135,5 @@ export function parsePersonal(raw: unknown): Personal {
   if (kind === "mp3" && !music.path) music.kind = "none";
   if (kind === "youtube" && !music.youtubeId) music.kind = "none";
 
-  return { sidebar, intro: outIntro, music };
+  return { home, sidebar, intro: outIntro, music };
 }

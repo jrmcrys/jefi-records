@@ -84,7 +84,7 @@ function Mp3Player({ music, label }: { music: Music; label: string }) {
     return () => clearTimeout(timer);
   }, [src, music.autoplay, start]);
 
-  useFirstGesture(Boolean(src) && music.autoplay && !playing, start);
+  useFirstGesture(Boolean(src) && music.autoplay && !started, start);
 
   return (
     <div className={pill}>
@@ -218,7 +218,7 @@ function YouTubePlayer({ music }: { music: Music }) {
   }, [id, music.autoplay, music.loop]);
 
   const start = useCallback(() => playerRef.current?.playVideo(), []);
-  useFirstGesture(ready && music.autoplay && !playing, start);
+  useFirstGesture(ready && music.autoplay && !started, start);
 
   return (
     <>
