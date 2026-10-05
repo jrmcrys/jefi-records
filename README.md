@@ -16,7 +16,7 @@ What it does: projects (shared or private) with sections, subtasks, custom colum
 
 Run these in the Supabase SQL Editor, in this order, each once:
 
-`schema.sql`, `phase2.sql`, `phase3.sql`, `phase3b.sql`, `phase4.sql`, `phase5.sql`, `phase6.sql`, `phase7.sql`, `phase9.sql`, `phase10.sql`, `phase11.sql`, `phase12.sql`, `phase13.sql`, `phase14.sql`, `phase15.sql`, `phase16.sql`.
+`schema.sql`, `phase2.sql`, `phase3.sql`, `phase3b.sql`, `phase4.sql`, `phase5.sql`, `phase6.sql`, `phase7.sql`, `phase9.sql`, `phase10.sql`, `phase11.sql`, `phase12.sql`, `phase13.sql`, `phase14.sql`, `phase15.sql`, `phase16.sql`, `phase17.sql`.
 
 `phase4.sql` ends with a "part B" that swaps the attachment storage rules and sets a 25 MB file limit. Some automated tools refuse to run it because it drops a policy, so paste that part into the SQL Editor yourself. Until it runs, files are readable by anyone signed in who knows the exact file path.
 

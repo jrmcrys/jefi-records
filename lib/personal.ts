@@ -3,9 +3,9 @@ import { parseCover, type Cover } from "./cover";
 /* Settings that belong to one person: which sidebar pages show, the intro
    text on each page, and the background music. Stored in profiles.personal. */
 
-export type PageKey = "home" | "inbox" | "my-tasks" | "docs" | "sheets";
+export type PageKey = "home" | "inbox" | "my-tasks" | "docs" | "sheets" | "notes";
 
-export const PAGE_KEYS: PageKey[] = ["home", "inbox", "my-tasks", "docs", "sheets"];
+export const PAGE_KEYS: PageKey[] = ["home", "inbox", "my-tasks", "docs", "sheets", "notes"];
 
 export const PAGE_LABELS: Record<PageKey, string> = {
   home: "Home",
@@ -13,6 +13,7 @@ export const PAGE_LABELS: Record<PageKey, string> = {
   "my-tasks": "My tasks",
   docs: "Docs",
   sheets: "Sheets",
+  notes: "Notes",
 };
 
 export const DEFAULT_INTRO: Record<PageKey, string> = {
@@ -22,6 +23,7 @@ export const DEFAULT_INTRO: Record<PageKey, string> = {
   docs: "Keep your Google Doc links in one place. Rename them here, and open them inside Jefi Records or in Google. You can change the default in Settings.",
   sheets:
     "Keep your Google Sheet links in one place. Rename them here, and open them inside Jefi Records or in Google. You can change the default in Settings.",
+  notes: "Write anything. Notes are private until you share one.",
 };
 
 export type MusicKind = "none" | "mp3" | "youtube";
@@ -88,7 +90,7 @@ export const DEFAULT_MUSIC: Music = {
 
 export const DEFAULT_PERSONAL: Personal = {
   home: { claude: true, tasks: true, calendar: true, inbox: true, quick: true },
-  sidebar: { home: true, inbox: true, "my-tasks": true, docs: true, sheets: true },
+  sidebar: { home: true, inbox: true, "my-tasks": true, docs: true, sheets: true, notes: true },
   intro: {},
   music: DEFAULT_MUSIC,
   covers: {},

@@ -423,7 +423,7 @@ export default function AppShell({
           </form>
           {error && <p className="mt-2 text-xs text-red-500">{error}</p>}
 
-          {(["inbox", "my-tasks", "docs", "sheets"] as const).some((k) => personal.sidebar[k]) && (
+          {(["inbox", "my-tasks", "docs", "sheets", "notes"] as const).some((k) => personal.sidebar[k]) && (
             <div className="mt-5 border-t border-current/10 pt-3">
               {personal.sidebar.inbox && (
                 <InboxLink
@@ -437,6 +437,7 @@ export default function AppShell({
                   ["my-tasks", "/my-tasks", "My tasks"],
                   ["docs", "/docs", "Docs"],
                   ["sheets", "/sheets", "Sheets"],
+                  ["notes", "/notes", "Notes"],
                 ] as const
               )
                 .filter(([key]) => personal.sidebar[key])
