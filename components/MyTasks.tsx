@@ -7,6 +7,7 @@ import { dueLabel } from "@/lib/dates";
 import { TASK_COLUMNS, type Status, type Task } from "@/lib/types";
 import { groupTasks, sortTasks, type DisplayGroup } from "@/lib/views";
 import PageIntro from "./PageIntro";
+import PageCover from "./PageCover";
 
 type Row = Task & { project: { id: string; name: string; archived: boolean } };
 type Show = "incomplete" | "completed" | "all";
@@ -123,7 +124,9 @@ export default function MyTasks({ meId }: { meId: string }) {
   const byId = useMemo(() => new Map(rows.map((r) => [r.id, r])), [rows]);
 
   return (
-    <div className="mx-auto w-full max-w-4xl px-4 py-6 md:px-6">
+    <div>
+      <PageCover page="my-tasks" label="My tasks" containerClassName="mx-auto w-full max-w-4xl px-4 md:px-6" />
+      <div className="mx-auto w-full max-w-4xl px-4 py-6 md:px-6">
       <h1 className="px-1.5 py-1 text-2xl font-semibold tracking-tight">My tasks</h1>
       <div className="px-1.5">
         <PageIntro page="my-tasks" />
@@ -237,6 +240,7 @@ export default function MyTasks({ meId }: { meId: string }) {
           </section>
         ))
       )}
+    </div>
     </div>
   );
 }

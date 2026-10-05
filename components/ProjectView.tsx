@@ -68,6 +68,9 @@ import {
   type RowProps,
 } from "./TaskRow";
 import ImagePicker from "./ImagePicker";
+import CoverBanner, { CoverAddButton } from "./Cover";
+import { coverLinkClass } from "./PageCover";
+import { isShown, parseCover, type Cover } from "@/lib/cover";
 import ProjectImage from "./ProjectImage";
 import ColumnHeader from "./ColumnHeader";
 import BulkBar from "./BulkBar";
@@ -729,6 +732,22 @@ export default function ProjectView({
       setError(error.message);
       load();
     } else router.refresh();
+  }
+
+  /* The cover is shared: everyone who can see the project sees it, and only
+     the owner changes it. */
+  async function saveCover(next: Cover | null): Promise<string | null> {
+    const before = project?.cover ?? null;
+    setProject((p) => (p ? { ...p, cover: next } : p));
+    const { error } = await supabase
+      .from("projects")
+      .update({ cover: next })
+      .eq("id", projectId);
+    if (error) {
+      setProject((p) => (p ? { ...p, cover: before } : p));
+      return error.message;
+    }
+    return null;
   }
 
   async function changeVisibility(visibility: Visibility) {
@@ -1438,11 +1457,54 @@ export default function ProjectView({
     (isOwner || project.appearance_shared ? savedColors : {});
   const pageStyle = projectStyle(shownColors) as React.CSSProperties;
 
+  const cover = parseCover(project.cover);
+  const coverShown = isShown(cover);
+
   return (
-    <div className="min-h-screen" style={pageStyle}>
-    <div className="mx-auto w-full max-w-7xl px-4 py-6 md:px-6">
+    <div className="group/pagecover min-h-screen" style={pageStyle}>
+    {coverShown && (
+      <CoverBanner
+        cover={cover}
+        canEdit={isOwner}
+        folder={`projects/${projectId}/covers`}
+        onSave={saveCover}
+      />
+    )}
+    <div className={`relative mx-auto w-full max-w-7xl px-4 md:px-6 ${coverShown ? "pb-6" : "py-6"}`}>
+      {isOwner && !coverShown && (
+        <div className="absolute left-0 top-0 z-10 flex gap-1 px-[inherit] pt-1 opacity-0 transition-opacity group-hover/pagecover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-60">
+          <CoverAddButton
+            cover={cover}
+            folder={`projects/${projectId}/covers`}
+            onSave={saveCover}
+            className={coverLinkClass}
+          />
+        </div>
+      )}
+      {coverShown && (
+        <div className="relative -mt-9 mb-1 w-fit">
+          {isOwner ? (
+            <ImagePicker
+              name={project.name}
+              value={{ imageUrl: project.image_url ?? null, emoji: project.emoji ?? null }}
+              folder={`projects/${projectId}`}
+              size={64}
+              buttonClassName="rounded-xl ring-4 ring-background hover:opacity-90"
+              onChange={changeProjectImage}
+            />
+          ) : (
+            <ProjectImage
+              name={project.name}
+              imageUrl={project.image_url}
+              emoji={project.emoji}
+              size={64}
+              className="ring-4 ring-background"
+            />
+          )}
+        </div>
+      )}
       <div className="flex items-center gap-2">
-        {isOwner ? (
+        {coverShown ? null : isOwner ? (
           <ImagePicker
             name={project.name}
             value={{ imageUrl: project.image_url ?? null, emoji: project.emoji ?? null }}

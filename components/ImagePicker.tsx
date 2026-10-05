@@ -19,6 +19,7 @@ function Body({
   value,
   folder,
   cropSquare,
+  resetLabel,
   onChange,
   close,
 }: {
@@ -26,6 +27,7 @@ function Body({
   value: PickedImage;
   folder: string;
   cropSquare: boolean;
+  resetLabel?: string;
   onChange: (next: PickedImage) => void | Promise<void>;
   close: () => void;
 }) {
@@ -137,8 +139,14 @@ function Body({
         onClick={() => void reset()}
         className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-current/10"
       >
-        <ProjectImage name={name} size={20} />
-        <span>Use initials</span>
+        {resetLabel ? (
+          <span>{resetLabel}</span>
+        ) : (
+          <>
+            <ProjectImage name={name} size={20} />
+            <span>Use initials</span>
+          </>
+        )}
       </button>
 
       {error && <p role="alert" className="text-xs text-red-500">{error}</p>}
@@ -154,6 +162,9 @@ export default function ImagePicker({
   folder,
   size = 36,
   cropSquare = true,
+  trigger,
+  buttonClassName,
+  resetLabel,
   onChange,
 }: {
   name: string;
@@ -162,17 +173,30 @@ export default function ImagePicker({
   folder: string;
   size?: number;
   cropSquare?: boolean;
+  /** Replaces the picture as the button that opens the panel. */
+  trigger?: React.ReactNode;
+  buttonClassName?: string;
+  /** Shown instead of "Use initials" for pictures that have no initials. */
+  resetLabel?: string;
   onChange: (next: PickedImage) => void | Promise<void>;
 }) {
   return (
     <Popover
       label={`Change picture for ${name}`}
       width={300}
-      buttonClassName="rounded-md hover:opacity-80 focus-visible:outline-2"
-      trigger={<ProjectImage name={name} imageUrl={value.imageUrl} emoji={value.emoji} size={size} />}
+      buttonClassName={buttonClassName ?? "rounded-md hover:opacity-80 focus-visible:outline-2"}
+      trigger={trigger ?? <ProjectImage name={name} imageUrl={value.imageUrl} emoji={value.emoji} size={size} />}
     >
       {(close) => (
-        <Body name={name} value={value} folder={folder} cropSquare={cropSquare} onChange={onChange} close={close} />
+        <Body
+          name={name}
+          value={value}
+          folder={folder}
+          cropSquare={cropSquare}
+          resetLabel={resetLabel}
+          onChange={onChange}
+          close={close}
+        />
       )}
     </Popover>
   );

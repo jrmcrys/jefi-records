@@ -94,7 +94,7 @@ export default function Popover({
             maxHeight: "min(70vh, 560px)",
             visibility: pos ? "visible" : "hidden",
           }}
-          className="z-[70] max-w-[calc(100vw-1rem)] overflow-y-auto rounded-lg border border-current/20 bg-background p-3 text-sm shadow-xl"
+          className="z-[90] max-w-[calc(100vw-1rem)] overflow-y-auto rounded-lg border border-current/20 bg-background p-3 text-sm shadow-xl"
         >
           {children(() => setOpen(false))}
         </div>

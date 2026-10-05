@@ -75,3 +75,18 @@ export async function removeIcon(url: string | null | undefined) {
   const supabase = createClient();
   await supabase.storage.from(ICON_BUCKET).remove([path]);
 }
+
+/* Uploads a wide header picture. It is kept whole and shrunk so the file
+   stays under the 2 MB limit of the icons bucket. */
+export async function uploadCover(file: File, folder: string): Promise<string> {
+  let blob = await prepareImage(file, 2400, false);
+  if (blob.size > 1_900_000) blob = await prepareImage(file, 1600, false);
+  if (blob.size > 1_900_000) throw new Error("That picture is too large. Try a smaller one.");
+  const path = `${folder}/${crypto.randomUUID()}.webp`;
+  const supabase = createClient();
+  const { error } = await supabase.storage
+    .from(ICON_BUCKET)
+    .upload(path, blob, { contentType: blob.type, upsert: false });
+  if (error) throw error;
+  return supabase.storage.from(ICON_BUCKET).getPublicUrl(path).data.publicUrl;
+}

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Profile, Project, Visibility } from "@/lib/types";
 import Avatar from "./Avatar";
@@ -27,6 +27,80 @@ function LockIcon() {
     >
       <rect x="3" y="7" width="10" height="7" rx="1.5" />
       <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" />
+    </svg>
+  );
+}
+
+/* Sidebar width on a computer. Each device keeps its own, in localStorage.
+   The saved value is applied before the page paints by the script in
+   app/(app)/layout.tsx, so there is no jump on load. */
+export const SIDEBAR_MIN = 200;
+export const SIDEBAR_MAX = 420;
+export const SIDEBAR_DEFAULT = 288;
+const WIDTH_KEY = "jefi:sidebar-width";
+const COLLAPSED_KEY = "jefi:sidebar-collapsed";
+
+function applySidebar(width: number, collapsed: boolean) {
+  const root = document.documentElement;
+  root.style.setProperty("--sb-w", `${width}px`);
+  if (collapsed) root.setAttribute("data-sb-collapsed", "");
+  else root.removeAttribute("data-sb-collapsed");
+}
+
+function useSidebarSize() {
+  const [width, setWidth] = useState(SIDEBAR_DEFAULT);
+  const [collapsed, setCollapsed] = useState(false);
+
+  useEffect(() => {
+    try {
+      const w = Number(window.localStorage.getItem(WIDTH_KEY));
+      const c = window.localStorage.getItem(COLLAPSED_KEY) === "1";
+      /* eslint-disable react-hooks/set-state-in-effect -- reading this device's saved size once */
+      if (w >= SIDEBAR_MIN && w <= SIDEBAR_MAX) setWidth(w);
+      setCollapsed(c);
+      /* eslint-enable react-hooks/set-state-in-effect */
+    } catch {
+      /* storage blocked: keep the default */
+    }
+  }, []);
+
+  function save(nextWidth: number, nextCollapsed: boolean) {
+    applySidebar(nextWidth, nextCollapsed);
+    try {
+      window.localStorage.setItem(WIDTH_KEY, String(nextWidth));
+      window.localStorage.setItem(COLLAPSED_KEY, nextCollapsed ? "1" : "0");
+    } catch {
+      /* the size still applies for this visit */
+    }
+  }
+
+  return {
+    width,
+    collapsed,
+    /** Live update while dragging, without saving. */
+    preview(w: number) {
+      const clamped = Math.round(Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, w)));
+      setWidth(clamped);
+      applySidebar(clamped, collapsed);
+      return clamped;
+    },
+    setWidth(w: number) {
+      const clamped = Math.round(Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, w)));
+      setWidth(clamped);
+      save(clamped, collapsed);
+    },
+    setCollapsed(c: boolean) {
+      setCollapsed(c);
+      save(width, c);
+    },
+  };
+}
+
+function SidebarIcon() {
+  return (
+    <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true">
+      <rect x="1.75" y="2.75" width="12.5" height="10.5" rx="2" />
+      <path d="M6 3v10" />
     </svg>
   );
 }
@@ -65,6 +139,8 @@ export default function AppShell({
   const [name, setName] = useState("");
   const [visibility, setVisibility] = useState<Visibility>("public");
   const [error, setError] = useState<string | null>(null);
+  const sidebar = useSidebarSize();
+  const dragRef = useRef<{ x: number; w: number } | null>(null);
 
   const active = projects.filter((p) => !p.archived);
   const archived = projects.filter((p) => p.archived);
@@ -195,16 +271,37 @@ export default function AppShell({
         />
       )}
 
+      <button
+        type="button"
+        aria-label="Show sidebar"
+        title="Show sidebar"
+        onClick={() => sidebar.setCollapsed(false)}
+        className="sb-expand fixed left-3 top-3 z-40 hidden size-8 items-center justify-center rounded-md border border-current/15 bg-background opacity-70 shadow-sm hover:opacity-100"
+      >
+        <SidebarIcon />
+      </button>
+
       <aside
+        id="app-sidebar"
         style={{ color: "var(--sidebar-fg, var(--foreground))" }}
-        className={`fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-current/10 bg-sidebar p-4 transition-transform md:sticky md:top-0 md:h-screen md:translate-x-0 ${
+        className={`sb-aside fixed inset-y-0 left-0 z-50 flex w-72 shrink-0 flex-col border-r border-current/10 bg-sidebar p-4 transition-transform md:sticky md:top-0 md:h-screen md:w-(--sb-w,18rem) md:translate-x-0 ${
           drawerOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2">
           <span className="min-w-0 text-lg">
             <Brand size={30} />
           </span>
+          <button
+            type="button"
+            aria-label="Hide sidebar"
+            aria-controls="app-sidebar"
+            title="Hide sidebar"
+            onClick={() => sidebar.setCollapsed(true)}
+            className="hidden size-8 shrink-0 items-center justify-center rounded-md opacity-50 hover:bg-current/10 hover:opacity-100 md:flex"
+          >
+            <SidebarIcon />
+          </button>
           <button
             type="button"
             aria-label="Close menu"
@@ -420,9 +517,54 @@ export default function AppShell({
             </button>
           </form>
         </div>
+
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Sidebar width. Drag, or use the left and right arrow keys. Double-click to reset."
+          aria-controls="app-sidebar"
+          aria-valuemin={SIDEBAR_MIN}
+          aria-valuemax={SIDEBAR_MAX}
+          aria-valuenow={sidebar.width}
+          tabIndex={0}
+          onPointerDown={(e) => {
+            e.preventDefault();
+            e.currentTarget.setPointerCapture(e.pointerId);
+            dragRef.current = { x: e.clientX, w: sidebar.width };
+            document.body.style.cursor = "col-resize";
+            document.body.style.userSelect = "none";
+          }}
+          onPointerMove={(e) => {
+            const d = dragRef.current;
+            if (d) sidebar.preview(d.w + e.clientX - d.x);
+          }}
+          onPointerUp={(e) => {
+            const d = dragRef.current;
+            if (!d) return;
+            dragRef.current = null;
+            document.body.style.cursor = "";
+            document.body.style.userSelect = "";
+            sidebar.setWidth(d.w + e.clientX - d.x);
+          }}
+          onPointerCancel={() => {
+            dragRef.current = null;
+            document.body.style.cursor = "";
+            document.body.style.userSelect = "";
+          }}
+          onDoubleClick={() => sidebar.setWidth(SIDEBAR_DEFAULT)}
+          onKeyDown={(e) => {
+            if (e.key === "ArrowLeft") sidebar.setWidth(sidebar.width - 16);
+            else if (e.key === "ArrowRight") sidebar.setWidth(sidebar.width + 16);
+            else if (e.key === "Home") sidebar.setWidth(SIDEBAR_MIN);
+            else if (e.key === "End") sidebar.setWidth(SIDEBAR_MAX);
+            else return;
+            e.preventDefault();
+          }}
+          className="absolute inset-y-0 -right-1 z-10 hidden w-2 cursor-col-resize touch-none md:block after:absolute after:inset-y-0 after:left-1/2 after:w-0.5 after:-translate-x-1/2 after:bg-transparent hover:after:bg-accent/60 focus-visible:after:bg-accent"
+        />
       </aside>
 
-      <main className="min-w-0 flex-1">{children}</main>
+      <main className="sb-main min-w-0 flex-1">{children}</main>
       <MusicPlayer />
     </div>
   );

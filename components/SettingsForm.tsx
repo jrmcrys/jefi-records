@@ -12,6 +12,7 @@ import BackupExport from "./BackupExport";
 import { LogoSettings, MusicSettings, SidebarSettings } from "./PersonalSettings";
 import type { Appearance } from "@/lib/theme";
 import type { LinkOpen, UserPrefs } from "@/lib/google";
+import PageCover from "./PageCover";
 
 const AVATAR_BUCKET = "avatars";
 const AVATAR_SIZE = 256;
@@ -178,7 +179,9 @@ export default function SettingsForm({
   }
 
   return (
-    <div className="mx-auto w-full max-w-xl px-4 py-8">
+    <div>
+      <PageCover page="settings" label="Settings" containerClassName="mx-auto w-full max-w-xl px-4" />
+      <div className="mx-auto w-full max-w-xl px-4 py-8">
       <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
       <p className="mt-1 text-sm opacity-70">
         How you appear to Effie and Jerome across Jefi Records.
@@ -320,6 +323,7 @@ export default function SettingsForm({
       <MusicSettings />
 
       <BackupExport />
+    </div>
     </div>
   );
 }

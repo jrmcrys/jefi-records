@@ -21,6 +21,7 @@ import PageIntro from "./PageIntro";
 import ProjectImage from "./ProjectImage";
 import { usePersonal } from "./PersonalProvider";
 import { sentence, SELECT as NOTIFICATION_SELECT, type Row as NotificationRow } from "./Inbox";
+import PageCover from "./PageCover";
 
 export type HomeProject = {
   id: string;
@@ -668,7 +669,9 @@ export default function Home({
   const on = (k: HomeSection) => personal.home[k];
 
   return (
-    <div className="mx-auto w-full max-w-4xl px-4 py-6 md:px-6">
+    <div>
+      <PageCover page="home" label="Home" containerClassName="mx-auto w-full max-w-4xl px-4 md:px-6" />
+      <div className="mx-auto w-full max-w-4xl px-4 py-6 md:px-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <h1 className="text-2xl font-semibold tracking-tight">
@@ -733,6 +736,7 @@ export default function Home({
           <p className="text-sm opacity-70">Everything is turned off. Press Customize to bring sections back.</p>
         )}
       </div>
+    </div>
     </div>
   );
 }

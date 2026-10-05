@@ -22,12 +22,13 @@ export type Project = {
   appearance?: unknown;
   appearance_shared?: boolean;
   default_section_name?: string;
+  cover?: unknown;
 };
 
 export const PROJECT_COLUMNS =
   "id,name,archived,position,visibility,created_by,image_url,emoji";
 
-export const PROJECT_PAGE_COLUMNS = `${PROJECT_COLUMNS},appearance,appearance_shared,default_section_name`;
+export const PROJECT_PAGE_COLUMNS = `${PROJECT_COLUMNS},appearance,appearance_shared,default_section_name,cover`;
 
 export const PROFILE_COLUMNS = "id,name,email,avatar_url";
 

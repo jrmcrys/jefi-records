@@ -140,7 +140,7 @@ export default function ChipPicker({
             top: pos?.top ?? 0,
             visibility: pos ? "visible" : "hidden",
           }}
-          className="z-[70] w-60 max-w-[calc(100vw-1rem)] rounded-lg border border-current/20 bg-background p-2 shadow-xl"
+          className="z-[90] w-60 max-w-[calc(100vw-1rem)] rounded-lg border border-current/20 bg-background p-2 shadow-xl"
         >
           <input
             autoFocus

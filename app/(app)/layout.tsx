@@ -11,6 +11,9 @@ import {
   type Project,
 } from "@/lib/types";
 
+/* Applies this device's saved sidebar width before the first paint. */
+const SIDEBAR_SCRIPT = `try{var w=+localStorage.getItem("jefi:sidebar-width");var r=document.documentElement;if(w>=200&&w<=420)r.style.setProperty("--sb-w",w+"px");if(localStorage.getItem("jefi:sidebar-collapsed")==="1")r.setAttribute("data-sb-collapsed","")}catch(e){}`;
+
 export default async function AppLayout({
   children,
 }: {
@@ -69,6 +72,7 @@ export default async function AppLayout({
   return (
     <>
       {css && <style dangerouslySetInnerHTML={{ __html: css }} />}
+      <script dangerouslySetInnerHTML={{ __html: SIDEBAR_SCRIPT }} />
       <PersonalProvider
         me={user.id}
         initial={parsePersonal(profile?.personal)}

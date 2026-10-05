@@ -1,3 +1,5 @@
+import { parseCover, type Cover } from "./cover";
+
 /* Settings that belong to one person: which sidebar pages show, the intro
    text on each page, and the background music. Stored in profiles.personal. */
 
@@ -53,11 +55,28 @@ export const HOME_LABELS: Record<HomeSection, string> = {
   quick: "Quick add and recent",
 };
 
+/* Pages that can carry a personal header image and icon. */
+export type CoverPageKey = PageKey | "settings";
+
+export const COVER_PAGE_KEYS: CoverPageKey[] = [...PAGE_KEYS, "settings"];
+
+export type PageIcon = { imageUrl: string | null; emoji: string | null };
+
+/* How the Docs and Sheets pages are laid out, per person. */
+export type LinkView = "list" | "gallery";
+export type LinkSort = "custom" | "name" | "added" | "opened" | "review";
+export type LinkGroup = "none" | "section" | "tag" | "person";
+export type LinkViewPrefs = { view: LinkView; sort: LinkSort; group: LinkGroup };
+export const DEFAULT_LINK_VIEW: LinkViewPrefs = { view: "list", sort: "custom", group: "section" };
+
 export type Personal = {
   home: Record<HomeSection, boolean>;
   sidebar: Record<PageKey, boolean>;
   intro: Partial<Record<PageKey, string>>;
   music: Music;
+  covers: Partial<Record<CoverPageKey, Cover>>;
+  icons: Partial<Record<CoverPageKey, PageIcon>>;
+  links: { doc: LinkViewPrefs; sheet: LinkViewPrefs };
 };
 
 export const DEFAULT_MUSIC: Music = {
@@ -72,7 +91,21 @@ export const DEFAULT_PERSONAL: Personal = {
   sidebar: { home: true, inbox: true, "my-tasks": true, docs: true, sheets: true },
   intro: {},
   music: DEFAULT_MUSIC,
+  covers: {},
+  icons: {},
+  links: { doc: DEFAULT_LINK_VIEW, sheet: DEFAULT_LINK_VIEW },
 };
+
+function parseLinkView(raw: unknown): LinkViewPrefs {
+  const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  const pick = <T extends string>(v: unknown, opts: readonly T[], d: T): T =>
+    opts.includes(v as T) ? (v as T) : d;
+  return {
+    view: pick(r.view, ["list", "gallery"] as const, DEFAULT_LINK_VIEW.view),
+    sort: pick(r.sort, ["custom", "name", "added", "opened", "review"] as const, DEFAULT_LINK_VIEW.sort),
+    group: pick(r.group, ["none", "section", "tag", "person"] as const, DEFAULT_LINK_VIEW.group),
+  };
+}
 
 const YT_ID = /^[A-Za-z0-9_-]{11}$/;
 
@@ -135,5 +168,23 @@ export function parsePersonal(raw: unknown): Personal {
   if (kind === "mp3" && !music.path) music.kind = "none";
   if (kind === "youtube" && !music.youtubeId) music.kind = "none";
 
-  return { home, sidebar, intro: outIntro, music };
+  const rc = (r.covers && typeof r.covers === "object" ? r.covers : {}) as Record<string, unknown>;
+  const ri = (r.icons && typeof r.icons === "object" ? r.icons : {}) as Record<string, unknown>;
+  const covers: Partial<Record<CoverPageKey, Cover>> = {};
+  const icons: Partial<Record<CoverPageKey, PageIcon>> = {};
+  for (const k of COVER_PAGE_KEYS) {
+    const c = parseCover(rc[k]);
+    if (c) covers[k] = c;
+    const i = (ri[k] && typeof ri[k] === "object" ? ri[k] : null) as Record<string, unknown> | null;
+    if (i) {
+      const imageUrl = typeof i.imageUrl === "string" ? i.imageUrl : null;
+      const emoji = typeof i.emoji === "string" && i.emoji ? i.emoji.slice(0, 16) : null;
+      if (imageUrl || emoji) icons[k] = { imageUrl, emoji: imageUrl ? null : emoji };
+    }
+  }
+
+  const rl = (r.links && typeof r.links === "object" ? r.links : {}) as Record<string, unknown>;
+  const links = { doc: parseLinkView(rl.doc), sheet: parseLinkView(rl.sheet) };
+
+  return { home, sidebar, intro: outIntro, music, covers, icons, links };
 }

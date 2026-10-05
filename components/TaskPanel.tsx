@@ -1,5 +1,6 @@
 "use client";
 
+import TaskLinks from "./links/TaskLinks";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Editor } from "@tiptap/react";
 import { createClient } from "@/lib/supabase/client";
@@ -824,6 +825,8 @@ export default function TaskPanel({
               />
             </section>
           )}
+
+          <TaskLinks taskId={task.id} />
 
           <section aria-label="Attachments" className="space-y-2">
             <div className="flex items-center justify-between">

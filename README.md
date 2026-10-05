@@ -16,7 +16,7 @@ What it does: projects (shared or private) with sections, subtasks, custom colum
 
 Run these in the Supabase SQL Editor, in this order, each once:
 
-`schema.sql`, `phase2.sql`, `phase3.sql`, `phase3b.sql`, `phase4.sql`, `phase5.sql`, `phase6.sql`, `phase7.sql`, `phase9.sql`, `phase10.sql`, `phase11.sql`, `phase12.sql`.
+`schema.sql`, `phase2.sql`, `phase3.sql`, `phase3b.sql`, `phase4.sql`, `phase5.sql`, `phase6.sql`, `phase7.sql`, `phase9.sql`, `phase10.sql`, `phase11.sql`, `phase12.sql`, `phase13.sql`, `phase14.sql`, `phase15.sql`, `phase16.sql`.
 
 `phase4.sql` ends with a "part B" that swaps the attachment storage rules and sets a 25 MB file limit. Some automated tools refuse to run it because it drops a policy, so paste that part into the SQL Editor yourself. Until it runs, files are readable by anyone signed in who knows the exact file path.
 
@@ -51,6 +51,16 @@ Set these in Vercel (Project Settings, Environment Variables). `NEXT_PUBLIC_` va
 5. Create `GOOGLE_TOKEN_KEY` with `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`. It encrypts the stored Google refresh tokens. Losing it means reconnecting Google.
 
 Each person must use the Google account whose email matches their Jefi Records email.
+
+## Browse Google Drive on the Docs and Sheets pages (optional)
+
+The "Browse Google Drive" button appears once these three are set in Vercel, then redeploy:
+
+- `NEXT_PUBLIC_GOOGLE_CLIENT_ID`: the same OAuth client ID as `GOOGLE_CLIENT_ID`.
+- `NEXT_PUBLIC_GOOGLE_API_KEY`: in Google Cloud, APIs and Services, Credentials, Create credentials, API key. Restrict it to the Google Picker API and to your site address.
+- `NEXT_PUBLIC_GOOGLE_APP_ID`: the project number shown on the Google Cloud dashboard.
+
+Also in Google Cloud: enable the Google Picker API and the Google Drive API, add your site address (for example `https://jefi-records-sg8y.vercel.app`) under Authorized JavaScript origins on the OAuth client, and add the scope `https://www.googleapis.com/auth/drive.file` to the consent screen. That scope only covers files you pick.
 
 ## Push notifications
 
@@ -89,4 +99,5 @@ Open http://localhost:3000. Checks: `npm run lint` and `npm run build`.
 - Google events show on project calendar views only, and private events on a shared calendar appear as Busy.
 - Saved views belong to the project. Link order is per person.
 - Docs and Sheets pages link to Google files. Google can refuse to show some files inside the page.
+- The sidebar width and whether it is hidden are saved per device. Page covers are personal; a project's cover is shared and only its owner changes it.
 - Connector dates without a time are stored at 12:00 UTC. Times without an offset are read as +08:00.

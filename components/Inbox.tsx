@@ -7,6 +7,7 @@ import { timeAgo } from "@/lib/format";
 import { PROFILE_COLUMNS, type Profile } from "@/lib/types";
 import Avatar from "./Avatar";
 import PageIntro from "./PageIntro";
+import PageCover from "./PageCover";
 
 type NotificationType = "mention" | "assigned" | "tag_comment" | "task_changed";
 
@@ -124,7 +125,9 @@ export default function Inbox({ meId }: { meId: string }) {
   const shown = onlyUnread ? rows.filter((r) => !r.read_at) : rows;
 
   return (
-    <div className="mx-auto w-full max-w-2xl px-4 py-6 md:px-6">
+    <div>
+      <PageCover page="inbox" label="Inbox" containerClassName="mx-auto w-full max-w-2xl px-4 md:px-6" />
+      <div className="mx-auto w-full max-w-2xl px-4 py-6 md:px-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <h1 className="text-2xl font-semibold tracking-tight">Inbox</h1>
@@ -229,6 +232,7 @@ export default function Inbox({ meId }: { meId: string }) {
           })}
         </ul>
       )}
+    </div>
     </div>
   );
 }
