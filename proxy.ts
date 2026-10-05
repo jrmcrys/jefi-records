@@ -39,7 +39,8 @@ export async function proxy(request: NextRequest) {
     path.startsWith("/auth") ||
     path.startsWith("/api/push/") ||
     path.startsWith("/api/mcp") ||
-    path.startsWith("/.well-known/");
+    path.startsWith("/.well-known/") ||
+    path.startsWith("/oauth-metadata");
 
   if (!user && !isPublic) {
     const url = request.nextUrl.clone();
