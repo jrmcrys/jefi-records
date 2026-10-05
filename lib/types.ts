@@ -16,14 +16,18 @@ export type Project = {
   position: number;
   visibility: Visibility;
   created_by: string;
+  image_url?: string | null;
+  emoji?: string | null;
   /* Only loaded on the project page. */
   appearance?: unknown;
   appearance_shared?: boolean;
+  default_section_name?: string;
 };
 
-export const PROJECT_COLUMNS = "id,name,archived,position,visibility,created_by";
+export const PROJECT_COLUMNS =
+  "id,name,archived,position,visibility,created_by,image_url,emoji";
 
-export const PROJECT_PAGE_COLUMNS = `${PROJECT_COLUMNS},appearance,appearance_shared`;
+export const PROJECT_PAGE_COLUMNS = `${PROJECT_COLUMNS},appearance,appearance_shared,default_section_name`;
 
 export const PROFILE_COLUMNS = "id,name,email,avatar_url";
 

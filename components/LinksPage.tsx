@@ -29,6 +29,7 @@ import {
 import { PROFILE_COLUMNS, type Profile, type Visibility } from "@/lib/types";
 import Avatar from "./Avatar";
 import Menu, { MenuItem } from "./Menu";
+import PageIntro from "./PageIntro";
 
 type LinkRow = {
   id: string;
@@ -387,10 +388,9 @@ export default function LinksPage({
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-6 md:px-6">
       <h1 className="px-1.5 py-1 text-2xl font-semibold tracking-tight">{labels.plural}</h1>
-      <p className="px-1.5 text-xs opacity-60">
-        Keep your {labels.singular} links in one place. Rename them here, and open them
-        inside Jefi Records or in Google. You can change the default in Settings.
-      </p>
+      <div className="px-1.5">
+        <PageIntro page={kind === "doc" ? "docs" : "sheets"} />
+      </div>
 
       <form onSubmit={addLink} className="mt-5 space-y-2 rounded-lg border border-current/15 p-3">
         <p className="text-sm font-medium">Add a {labels.singular}</p>

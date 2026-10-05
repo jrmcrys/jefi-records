@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { timeAgo } from "@/lib/format";
 import { PROFILE_COLUMNS, type Profile } from "@/lib/types";
 import Avatar from "./Avatar";
+import PageIntro from "./PageIntro";
 
 type NotificationType = "mention" | "assigned" | "tag_comment" | "task_changed";
 
@@ -125,7 +126,10 @@ export default function Inbox({ meId }: { meId: string }) {
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-6 md:px-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight">Inbox</h1>
+        <div className="min-w-0">
+          <h1 className="text-2xl font-semibold tracking-tight">Inbox</h1>
+          <PageIntro page="inbox" />
+        </div>
         <div className="flex items-center gap-2">
           <div
             role="radiogroup"

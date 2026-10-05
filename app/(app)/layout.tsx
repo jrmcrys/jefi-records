@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import AppShell from "@/components/AppShell";
+import { PersonalProvider } from "@/components/PersonalProvider";
+import { parsePersonal } from "@/lib/personal";
 import { parseAppearance, themeCss } from "@/lib/theme";
 import {
   PROFILE_COLUMNS,
@@ -21,11 +23,15 @@ export default async function AppLayout({
 
   if (!user) redirect("/login");
 
-  const [{ data: profile }, { data: projects }, { data: prefs }] =
-    await Promise.all([
+  const [
+    { data: profile },
+    { data: projects },
+    { data: prefs },
+    { data: settings },
+  ] = await Promise.all([
       supabase
         .from("profiles")
-        .select(`${PROFILE_COLUMNS},appearance`)
+        .select(`${PROFILE_COLUMNS},appearance,personal`)
         .eq("id", user.id)
         .maybeSingle(),
       supabase
@@ -34,6 +40,7 @@ export default async function AppLayout({
         .order("position")
         .order("created_at"),
       supabase.from("project_prefs").select("project_id,position"),
+      supabase.from("app_settings").select("logo_url").eq("id", 1).maybeSingle(),
     ]);
 
   const me: Profile = profile
@@ -62,9 +69,15 @@ export default async function AppLayout({
   return (
     <>
       {css && <style dangerouslySetInnerHTML={{ __html: css }} />}
-      <AppShell me={me} projects={sorted}>
-        {children}
-      </AppShell>
+      <PersonalProvider
+        me={user.id}
+        initial={parsePersonal(profile?.personal)}
+        initialBranding={{ logoUrl: (settings?.logo_url as string | null) ?? null }}
+      >
+        <AppShell me={me} projects={sorted}>
+          {children}
+        </AppShell>
+      </PersonalProvider>
     </>
   );
 }

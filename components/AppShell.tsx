@@ -8,6 +8,9 @@ import type { Profile, Project, Visibility } from "@/lib/types";
 import Avatar from "./Avatar";
 import Menu, { MenuItem } from "./Menu";
 import InboxLink from "./InboxLink";
+import ProjectImage from "./ProjectImage";
+import MusicPlayer from "./MusicPlayer";
+import { usePersonal } from "./PersonalProvider";
 
 function LockIcon() {
   return (
@@ -28,6 +31,24 @@ function LockIcon() {
   );
 }
 
+function Brand({ size }: { size: number }) {
+  const { branding } = usePersonal();
+  return (
+    <span className="flex min-w-0 items-center gap-2">
+      {branding.logoUrl && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={branding.logoUrl}
+          alt=""
+          className="shrink-0 rounded-md object-contain"
+          style={{ width: size, height: size }}
+        />
+      )}
+      <span className="truncate font-semibold tracking-tight">Jefi Records</span>
+    </span>
+  );
+}
+
 export default function AppShell({
   me,
   projects,
@@ -39,6 +60,7 @@ export default function AppShell({
 }) {
   const router = useRouter();
   const pathname = usePathname();
+  const { personal } = usePersonal();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [name, setName] = useState("");
   const [visibility, setVisibility] = useState<Visibility>("public");
@@ -148,7 +170,7 @@ export default function AppShell({
         >
           {"☰"}
         </button>
-        <span className="font-semibold tracking-tight">Jefi Records</span>
+        <Brand size={26} />
       </header>
 
       {drawerOpen && (
@@ -160,13 +182,14 @@ export default function AppShell({
       )}
 
       <aside
+        style={{ color: "var(--sidebar-fg, var(--foreground))" }}
         className={`fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-current/10 bg-sidebar p-4 transition-transform md:sticky md:top-0 md:h-screen md:translate-x-0 ${
           drawerOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
         <div className="flex items-center justify-between">
-          <span className="text-lg font-semibold tracking-tight">
-            Jefi Records
+          <span className="min-w-0 text-lg">
+            <Brand size={30} />
           </span>
           <button
             type="button"
@@ -179,38 +202,7 @@ export default function AppShell({
         </div>
 
         <nav className="mt-6 flex-1 overflow-y-auto" aria-label="Projects">
-          <InboxLink
-            meId={me.id}
-            active={pathname === "/inbox"}
-            onNavigate={() => setDrawerOpen(false)}
-          />
-          <Link
-            href="/my-tasks"
-            onClick={() => setDrawerOpen(false)}
-            className={`mb-1 flex items-center rounded-md px-2 py-2 text-sm hover:bg-current/10 ${
-              pathname === "/my-tasks" ? "bg-current/10 font-medium" : ""
-            }`}
-          >
-            My tasks
-          </Link>
-          {(
-            [
-              ["/docs", "Docs"],
-              ["/sheets", "Sheets"],
-            ] as const
-          ).map(([href, text]) => (
-            <Link
-              key={href}
-              href={href}
-              onClick={() => setDrawerOpen(false)}
-              className={`mb-1 flex items-center rounded-md px-2 py-2 text-sm hover:bg-current/10 ${
-                pathname === href ? "bg-current/10 font-medium" : ""
-              }`}
-            >
-              {text}
-            </Link>
-          ))}
-          <p className="mt-4 px-2 text-xs font-medium uppercase tracking-wide opacity-50">
+          <p className="px-2 text-xs font-medium uppercase tracking-wide opacity-50">
             Projects
           </p>
           <ul className="mt-2 space-y-0.5">
@@ -220,7 +212,7 @@ export default function AppShell({
                 <li
                   key={p.id}
                   className={`flex items-center rounded-md hover:bg-current/10 ${
-                    isActive ? "bg-current/10" : ""
+                    isActive ? "nav-active" : ""
                   }`}
                 >
                   <Link
@@ -230,6 +222,12 @@ export default function AppShell({
                       isActive ? "font-medium" : ""
                     }`}
                   >
+                    <ProjectImage
+                      name={p.name}
+                      imageUrl={p.image_url}
+                      emoji={p.emoji}
+                      size={20}
+                    />
                     <span className="truncate">{p.name}</span>
                     {p.visibility === "private" && <LockIcon />}
                   </Link>
@@ -303,6 +301,38 @@ export default function AppShell({
           </form>
           {error && <p className="mt-2 text-xs text-red-500">{error}</p>}
 
+          {(Object.values(personal.sidebar).some(Boolean)) && (
+            <div className="mt-5 border-t border-current/10 pt-3">
+              {personal.sidebar.inbox && (
+                <InboxLink
+                  meId={me.id}
+                  active={pathname === "/inbox"}
+                  onNavigate={() => setDrawerOpen(false)}
+                />
+              )}
+              {(
+                [
+                  ["my-tasks", "/my-tasks", "My tasks"],
+                  ["docs", "/docs", "Docs"],
+                  ["sheets", "/sheets", "Sheets"],
+                ] as const
+              )
+                .filter(([key]) => personal.sidebar[key])
+                .map(([key, href, text]) => (
+                  <Link
+                    key={key}
+                    href={href}
+                    onClick={() => setDrawerOpen(false)}
+                    className={`mb-1 flex items-center rounded-md px-2 py-2 text-sm hover:bg-current/10 ${
+                      pathname === href ? "nav-active font-medium" : ""
+                    }`}
+                  >
+                    {text}
+                  </Link>
+                ))}
+            </div>
+          )}
+
           {archived.length > 0 && (
             <details className="mt-6">
               <summary className="cursor-pointer px-2 text-xs font-medium uppercase tracking-wide opacity-50">
@@ -345,7 +375,7 @@ export default function AppShell({
             href="/settings"
             onClick={() => setDrawerOpen(false)}
             className={`flex items-center gap-3 rounded-md px-2 py-2 hover:bg-current/10 ${
-              pathname === "/settings" ? "bg-current/10" : ""
+              pathname === "/settings" ? "nav-active" : ""
             }`}
           >
             <Avatar profile={me} size={32} />
@@ -368,6 +398,7 @@ export default function AppShell({
       </aside>
 
       <main className="min-w-0 flex-1">{children}</main>
+      <MusicPlayer />
     </div>
   );
 }

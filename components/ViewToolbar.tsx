@@ -21,6 +21,8 @@ import {
 } from "@/lib/views";
 import type { Profile, Status, Tag } from "@/lib/types";
 import Popover from "./Popover";
+import { FilterIcon, GroupIcon, OptionsIcon, SortIcon, ViewsIcon } from "./Icons";
+import type { RowHeight } from "@/lib/tablePrefs";
 
 export type SavedView = {
   id: string;
@@ -109,6 +111,10 @@ export default function ViewToolbar({
   shown,
   total,
   hideLayout,
+  leading,
+  rowHeight,
+  onRowHeight,
+  onResetColumns,
 }: {
   view: ViewConfig;
   onChange: (view: ViewConfig) => void;
@@ -123,6 +129,11 @@ export default function ViewToolbar({
   total: number;
   /** Hide sort and group, which only apply to the list. */
   hideLayout?: boolean;
+  /** Shown at the left of the same row, such as the List and Calendar tabs. */
+  leading?: React.ReactNode;
+  rowHeight: RowHeight;
+  onRowHeight: (h: RowHeight) => void;
+  onResetColumns: () => void;
 }) {
   const [saveName, setSaveName] = useState("");
   const f = view.filters;
@@ -137,12 +148,15 @@ export default function ViewToolbar({
 
   return (
     <div className="mt-4 flex flex-wrap items-center gap-2">
+      {leading}
+      <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
       <Popover
         label="Views"
         trigger={
           <>
-            <span>{currentName ?? "Custom view"}</span>
-            <span aria-hidden="true" className="text-xs opacity-60">
+            <ViewsIcon />
+            <span className="max-md:sr-only">{currentName ?? "Custom view"}</span>
+            <span aria-hidden="true" className="text-xs opacity-60 max-md:hidden">
               {"▾"}
             </span>
           </>
@@ -245,7 +259,8 @@ export default function ViewToolbar({
         label="Filter"
         trigger={
           <>
-            <span>Filter</span>
+            <FilterIcon />
+            <span className="max-md:sr-only">Filter</span>
             <Badge n={count} />
           </>
         }
@@ -418,9 +433,12 @@ export default function ViewToolbar({
         label="Sort"
         trigger={
           <>
-            <span>Sort</span>
+            <SortIcon />
+            <span className="max-md:sr-only">Sort</span>
             {view.sort.key !== "manual" && (
-              <span className="text-xs opacity-70">{SORT_LABELS[view.sort.key]}</span>
+              <span className="text-xs opacity-70 max-md:hidden">
+                {SORT_LABELS[view.sort.key]}
+              </span>
             )}
           </>
         }
@@ -485,9 +503,12 @@ export default function ViewToolbar({
         label="Group"
         trigger={
           <>
-            <span>Group</span>
+            <GroupIcon />
+            <span className="max-md:sr-only">Group</span>
             {view.group !== "sections" && (
-              <span className="text-xs opacity-70">{GROUP_LABELS[view.group]}</span>
+              <span className="text-xs opacity-70 max-md:hidden">
+                {GROUP_LABELS[view.group]}
+              </span>
             )}
           </>
         }
@@ -519,6 +540,67 @@ export default function ViewToolbar({
       </Popover>
       )}
 
+      {!hideLayout && (
+        <Popover
+          label="Options"
+          trigger={
+            <>
+              <OptionsIcon />
+              <span className="max-md:sr-only">Options</span>
+            </>
+          }
+          width={240}
+        >
+          {(close) => (
+            <div className="space-y-3">
+              <div>
+                <span className={label}>Row height</span>
+                <div
+                  role="radiogroup"
+                  aria-label="Row height"
+                  className="flex overflow-hidden rounded-md border border-current/20"
+                >
+                  {(
+                    [
+                      ["compact", "Compact"],
+                      ["large", "Large"],
+                    ] as [RowHeight, string][]
+                  ).map(([value, text]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      role="radio"
+                      aria-checked={rowHeight === value}
+                      onClick={() => onRowHeight(value)}
+                      className={`flex-1 px-2 py-1.5 ${
+                        rowHeight === value
+                          ? "bg-accent/15 font-medium"
+                          : "hover:bg-current/10"
+                      }`}
+                    >
+                      {text}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  onResetColumns();
+                  close();
+                }}
+                className="text-sm underline"
+              >
+                Reset columns to Task and Due date
+              </button>
+              <p className="text-xs opacity-60">
+                Column and row height choices are saved for you only.
+              </p>
+            </div>
+          )}
+        </Popover>
+      )}
+
       {!isDefaultView(view) && (
         <button
           type="button"
@@ -533,6 +615,7 @@ export default function ViewToolbar({
           Showing {shown} of {total} tasks
         </span>
       )}
+      </div>
     </div>
   );
 }

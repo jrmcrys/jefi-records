@@ -69,14 +69,14 @@ export default function InboxLink({
       href="/inbox"
       onClick={onNavigate}
       className={`mb-1 flex items-center justify-between rounded-md px-2 py-2 text-sm hover:bg-current/10 ${
-        active ? "bg-current/10 font-medium" : ""
+        active ? "nav-active font-medium" : ""
       }`}
     >
       <span>Inbox</span>
       {unread > 0 && (
         <span
           aria-label={`${unread} unread`}
-          className="min-w-5 rounded-full bg-accent px-1.5 py-0.5 text-center text-xs font-medium leading-none text-white"
+          className="badge min-w-5 rounded-full px-1.5 py-0.5 text-center text-xs font-medium leading-none"
         >
           {unread > 99 ? "99+" : unread}
         </span>

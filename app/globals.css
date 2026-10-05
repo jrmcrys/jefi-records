@@ -24,6 +24,16 @@
   }
 }
 
+/* Sidebar pieces that follow the person's theme colors. */
+.nav-active {
+  background: var(--selected, color-mix(in srgb, currentColor 10%, transparent));
+  color: var(--selected-fg, inherit);
+}
+.badge {
+  background: var(--badge, var(--accent));
+  color: var(--badge-fg, #ffffff);
+}
+
 body {
   background: var(--background);
   color: var(--foreground);

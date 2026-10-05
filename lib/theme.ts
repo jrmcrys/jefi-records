@@ -6,12 +6,17 @@ export type Appearance = {
   background?: string;
   sidebar?: string;
   foreground?: string;
+  /** Background of the page you are on in the sidebar. */
+  selected?: string;
+  /** The little unread count on Inbox. */
+  badge?: string;
 };
 
 export const PALETTE = {
   light: { background: "#ffffff", foreground: "#171717", sidebar: "#fafafa" },
   dark: { background: "#0a0a0a", foreground: "#ededed", sidebar: "#111111" },
   accent: "#2563eb",
+  selected: { light: "#e9e9ec", dark: "#26262a" },
 } as const;
 
 export const ACCENT_PRESETS = [
@@ -44,6 +49,8 @@ export function parseAppearance(raw: unknown): Appearance {
   if (isHex(r.background)) out.background = r.background.toLowerCase();
   if (isHex(r.sidebar)) out.sidebar = r.sidebar.toLowerCase();
   if (isHex(r.foreground)) out.foreground = r.foreground.toLowerCase();
+  if (isHex(r.selected)) out.selected = r.selected.toLowerCase();
+  if (isHex(r.badge)) out.badge = r.badge.toLowerCase();
   return out;
 }
 
@@ -135,8 +142,22 @@ export function themeCss(raw: Appearance): string {
   const foreground =
     a.foreground ?? (a.background ? readableOn(a.background) : undefined);
   if (foreground) decls.push(`--foreground:${foreground}`);
-  if (a.sidebar) decls.push(`--sidebar:${a.sidebar}`);
-  if (a.accent) decls.push(`--accent:${a.accent}`);
+  if (a.sidebar) {
+    decls.push(`--sidebar:${a.sidebar}`);
+    decls.push(`--sidebar-fg:${readableOn(a.sidebar)}`);
+  }
+  if (a.selected) {
+    decls.push(`--selected:${a.selected}`);
+    decls.push(`--selected-fg:${readableOn(a.selected)}`);
+  }
+  if (a.badge) {
+    decls.push(`--badge:${a.badge}`);
+    decls.push(`--badge-fg:${readableOn(a.badge)}`);
+  }
+  if (a.accent) {
+    decls.push(`--accent:${a.accent}`);
+    decls.push(`--accent-fg:${readableOn(a.accent)}`);
+  }
   if (decls.length) css.push(`:root{${decls.join(";")}}`);
 
   return css.join("");

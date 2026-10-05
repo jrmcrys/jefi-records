@@ -9,6 +9,7 @@ import AppearanceSettings from "./AppearanceSettings";
 import GoogleCalendarSettings from "./GoogleCalendarSettings";
 import NotificationSettings from "./NotificationSettings";
 import BackupExport from "./BackupExport";
+import { LogoSettings, MusicSettings, SidebarSettings } from "./PersonalSettings";
 import type { Appearance } from "@/lib/theme";
 import type { LinkOpen, UserPrefs } from "@/lib/google";
 
@@ -310,7 +311,13 @@ export default function SettingsForm({
         onShowShared={(value) => savePrefs({ showSharedCalendars: value })}
       />
 
+      <SidebarSettings />
+
+      <LogoSettings />
+
       <AppearanceSettings userId={me.id} initial={appearance} />
+
+      <MusicSettings />
 
       <BackupExport />
     </div>

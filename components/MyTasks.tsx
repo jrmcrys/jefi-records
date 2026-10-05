@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { dueLabel } from "@/lib/dates";
 import { TASK_COLUMNS, type Status, type Task } from "@/lib/types";
 import { groupTasks, sortTasks, type DisplayGroup } from "@/lib/views";
+import PageIntro from "./PageIntro";
 
 type Row = Task & { project: { id: string; name: string; archived: boolean } };
 type Show = "incomplete" | "completed" | "all";
@@ -124,9 +125,9 @@ export default function MyTasks({ meId }: { meId: string }) {
   return (
     <div className="mx-auto w-full max-w-4xl px-4 py-6 md:px-6">
       <h1 className="px-1.5 py-1 text-2xl font-semibold tracking-tight">My tasks</h1>
-      <p className="px-1.5 text-xs opacity-60">
-        Everything assigned to you, across all of your projects.
-      </p>
+      <div className="px-1.5">
+        <PageIntro page="my-tasks" />
+      </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <div role="radiogroup" aria-label="Show" className="flex overflow-hidden rounded-md border border-current/20 text-sm">
