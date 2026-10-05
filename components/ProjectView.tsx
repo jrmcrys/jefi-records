@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   DndContext,
@@ -22,9 +22,26 @@ import {
 } from "@dnd-kit/sortable";
 import { createClient } from "@/lib/supabase/client";
 import {
+  parseProjectColors,
+  projectStyle,
+  type ProjectColors,
+} from "@/lib/theme";
+import {
+  DEFAULT_VIEW,
+  activeFilterCount,
+  buildDisplay,
+  parseView,
+  type ViewConfig,
+} from "@/lib/views";
+import {
+  FIELD_COLUMNS,
   PROFILE_COLUMNS,
-  PROJECT_COLUMNS,
+  PROJECT_PAGE_COLUMNS,
   TASK_COLUMNS,
+  type FieldDef,
+  type FieldType,
+  type FieldValues,
+  type Tag,
   type Profile,
   type Project,
   type Section,
@@ -34,12 +51,165 @@ import {
 } from "@/lib/types";
 import AddInline from "./AddInline";
 import Menu, { MenuItem } from "./Menu";
+import FieldsEditor from "./FieldsEditor";
 import StatusEditor from "./StatusEditor";
+import TagsEditor from "./TagsEditor";
+import ProjectColorsEditor from "./ProjectColors";
+import { useGoogleEvents, type EventRange } from "@/lib/useGoogleEvents";
+import CalendarView from "./CalendarView";
+import ViewToolbar, { type SavedView } from "./ViewToolbar";
+import TaskPanel from "./TaskPanel";
 import { SortableTask, TaskRow, type RowProps } from "./TaskRow";
+
+type BuiltinKey = "status" | "assignee" | "due" | "tags";
+
+/* "name", a built-in column, or "f:<field id>" for a custom column */
+type ColKey = string;
+
+type ColState = {
+  widths: Record<string, number>;
+  hidden: BuiltinKey[];
+};
+
+const BUILTINS: BuiltinKey[] = ["status", "assignee", "due", "tags"];
+
+const COLUMN_LABELS: Record<BuiltinKey, string> = {
+  status: "Status",
+  assignee: "Assignee",
+  due: "Due date",
+  tags: "Tags",
+};
+
+const DEFAULT_COLS: ColState = { widths: {}, hidden: [] };
+
+const BUILTIN_WIDTH: Record<BuiltinKey, number> = {
+  status: 170,
+  assignee: 190,
+  due: 160,
+  tags: 220,
+};
+
+const FIELD_WIDTH: Record<FieldType, number> = {
+  dropdown: 170,
+  multi_select: 220,
+  text: 190,
+  number: 130,
+  url: 210,
+  checkbox: 110,
+  person: 190,
+};
+
+function minWidth(key: ColKey): number {
+  if (key === "name") return 200;
+  if (key === "status") return 120;
+  if (key === "assignee") return 130;
+  return 110;
+}
+
+const MAX_WIDTH = 640;
+const NUM_WIDTH = 72;
+const ACTION_WIDTH = 48;
+const NAME_FLEX_MIN = 260;
+
+function colsStorageKey(projectId: string) {
+  return `jefi:columns:${projectId}`;
+}
+
+function readCols(projectId: string): ColState {
+  if (typeof window === "undefined") return DEFAULT_COLS;
+  try {
+    const raw = window.localStorage.getItem(colsStorageKey(projectId));
+    if (!raw) return DEFAULT_COLS;
+    const parsed = JSON.parse(raw) as Partial<ColState>;
+    const w = (parsed.widths ?? {}) as Record<string, unknown>;
+    const widths: Record<string, number> = {};
+    for (const [key, value] of Object.entries(w)) {
+      if (typeof value === "number" && Number.isFinite(value)) {
+        widths[key] = Math.min(MAX_WIDTH, Math.max(minWidth(key), value));
+      }
+    }
+    return {
+      widths,
+      hidden: (Array.isArray(parsed.hidden) ? parsed.hidden : []).filter(
+        (k): k is BuiltinKey => BUILTINS.includes(k as BuiltinKey)
+      ),
+    };
+  } catch {
+    return DEFAULT_COLS;
+  }
+}
+
+type Layout = "list" | "calendar";
+
+function layoutStorageKey(projectId: string) {
+  return `jefi:layout:${projectId}`;
+}
+
+function readLayout(projectId: string): Layout {
+  if (typeof window === "undefined") return "list";
+  try {
+    return window.localStorage.getItem(layoutStorageKey(projectId)) === "calendar"
+      ? "calendar"
+      : "list";
+  } catch {
+    return "list";
+  }
+}
+
+function viewStorageKey(projectId: string) {
+  return `jefi:view:${projectId}`;
+}
+
+function readView(projectId: string): ViewConfig {
+  if (typeof window === "undefined") return DEFAULT_VIEW;
+  try {
+    const raw = window.localStorage.getItem(viewStorageKey(projectId));
+    return raw ? parseView(JSON.parse(raw)) : DEFAULT_VIEW;
+  } catch {
+    return DEFAULT_VIEW;
+  }
+}
 
 const byPosition = (a: { position: number; created_at?: string }, b: { position: number; created_at?: string }) =>
   a.position - b.position ||
   (a.created_at ?? "").localeCompare(b.created_at ?? "");
+
+function HeaderCell({
+  label,
+  colKey,
+  onStart,
+  onMove,
+  onEnd,
+  onKey,
+}: {
+  label: string;
+  colKey: ColKey;
+  onStart: (key: ColKey, e: React.PointerEvent<HTMLDivElement>) => void;
+  onMove: (e: React.PointerEvent<HTMLDivElement>) => void;
+  onEnd: () => void;
+  onKey: (key: ColKey, e: React.KeyboardEvent<HTMLDivElement>) => void;
+}) {
+  return (
+    <div
+      role="columnheader"
+      className="relative border-l border-current/10 px-3 py-2"
+    >
+      {label}
+      <div
+        role="separator"
+        aria-orientation="vertical"
+        aria-label={`Resize ${label} column`}
+        tabIndex={0}
+        onPointerDown={(e) => onStart(colKey, e)}
+        onPointerMove={onMove}
+        onPointerUp={onEnd}
+        onPointerCancel={onEnd}
+        onKeyDown={(e) => onKey(colKey, e)}
+        className="absolute -right-1 top-0 z-10 h-full w-2 cursor-col-resize touch-none hover:bg-accent/50 active:bg-accent"
+      />
+    </div>
+  );
+}
 
 function DropContainer({
   id,
@@ -80,6 +250,74 @@ export default function ProjectView({
   const [addingSubFor, setAddingSubFor] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [editingStatuses, setEditingStatuses] = useState(false);
+  const [openTaskId, setOpenTaskId] = useState<string | null>(null);
+  const [fields, setFields] = useState<FieldDef[]>([]);
+  const [fieldValues, setFieldValues] = useState<Record<string, FieldValues>>({});
+  const [allTags, setAllTags] = useState<Tag[]>([]);
+  const [taskTagIds, setTaskTagIds] = useState<Record<string, string[]>>({});
+  const [followedTagIds, setFollowedTagIds] = useState<Set<string>>(new Set());
+  const [view, setView] = useState<ViewConfig>(() => readView(projectId));
+  const [savedViews, setSavedViews] = useState<SavedView[]>([]);
+  const [layout, setLayout] = useState<Layout>(() => readLayout(projectId));
+  const [editingFields, setEditingFields] = useState(false);
+  const [editingTags, setEditingTags] = useState(false);
+  const [editingColors, setEditingColors] = useState(false);
+  const [eventRange, setEventRange] = useState<EventRange | null>(null);
+  const googleEvents = useGoogleEvents(layout === "calendar" ? eventRange : null);
+  const [previewColors, setPreviewColors] = useState<ProjectColors | null>(null);
+  const [cols, setCols] = useState<ColState>(() => readCols(projectId));
+  const resizing = useRef<{
+    key: ColKey;
+    startX: number;
+    startWidth: number;
+  } | null>(null);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(layoutStorageKey(projectId), layout);
+    } catch {
+      /* the layout simply will not be remembered */
+    }
+  }, [layout, projectId]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(viewStorageKey(projectId), JSON.stringify(view));
+    } catch {
+      /* storage can be unavailable, the view simply will not be remembered */
+    }
+  }, [view, projectId]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(colsStorageKey(projectId), JSON.stringify(cols));
+    } catch {
+      /* storage can be unavailable, the layout simply will not be remembered */
+    }
+  }, [cols, projectId]);
+
+  /* the open task lives in the address (?task=id) so it survives a refresh and can be shared */
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setOpenTaskId(new URLSearchParams(window.location.search).get("task"));
+    }, 0);
+    const onPop = () =>
+      setOpenTaskId(new URLSearchParams(window.location.search).get("task"));
+    window.addEventListener("popstate", onPop);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("popstate", onPop);
+    };
+  }, [projectId]);
+
+  function openTask(id: string | null) {
+    setOpenTaskId(id);
+    const url = new URL(window.location.href);
+    if (id) url.searchParams.set("task", id);
+    else url.searchParams.delete("task");
+    window.history.replaceState(null, "", url.pathname + url.search);
+  }
 
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
@@ -92,10 +330,10 @@ export default function ProjectView({
   );
 
   const load = useCallback(async () => {
-    const [p, s, st, t, pr] = await Promise.all([
+    const [p, s, st, t, pr, fd, fv, tg, tt, tf, sv] = await Promise.all([
       supabase
         .from("projects")
-        .select(PROJECT_COLUMNS)
+        .select(PROJECT_PAGE_COLUMNS)
         .eq("id", projectId)
         .maybeSingle(),
       supabase
@@ -114,8 +352,30 @@ export default function ProjectView({
         .eq("project_id", projectId)
         .order("position"),
       supabase.from("profiles").select(PROFILE_COLUMNS).order("name"),
+      supabase
+        .from("field_definitions")
+        .select(FIELD_COLUMNS)
+        .eq("project_id", projectId)
+        .order("position"),
+      supabase
+        .from("task_field_values")
+        .select("task_id,field_id,value,tasks!inner(project_id)")
+        .eq("tasks.project_id", projectId),
+      supabase.from("tags").select("id,name,color").order("name"),
+      supabase
+        .from("task_tags")
+        .select("task_id,tag_id,tasks!inner(project_id)")
+        .eq("tasks.project_id", projectId),
+      supabase.from("tag_follows").select("tag_id").eq("user_id", meId),
+      supabase
+        .from("saved_views")
+        .select("id,name,filters,sort,group_by,created_by")
+        .eq("project_id", projectId)
+        .order("created_at"),
     ]);
-    const err = p.error ?? s.error ?? st.error ?? t.error ?? pr.error;
+    const err =
+      p.error ?? s.error ?? st.error ?? t.error ?? pr.error ?? fd.error ??
+      fv.error ?? tg.error ?? tt.error ?? tf.error ?? sv.error;
     if (err) {
       setError(err.message);
       setLoading(false);
@@ -126,8 +386,45 @@ export default function ProjectView({
     setStatuses((st.data ?? []) as Status[]);
     setTasks((t.data ?? []) as unknown as Task[]);
     setProfiles((pr.data ?? []) as Profile[]);
+    setFields((fd.data ?? []) as unknown as FieldDef[]);
+    const values: Record<string, FieldValues> = {};
+    for (const row of (fv.data ?? []) as unknown as {
+      task_id: string;
+      field_id: string;
+      value: unknown;
+    }[]) {
+      (values[row.task_id] ??= {})[row.field_id] = row.value;
+    }
+    setFieldValues(values);
+    setAllTags((tg.data ?? []) as Tag[]);
+    const tagMap: Record<string, string[]> = {};
+    for (const row of (tt.data ?? []) as unknown as {
+      task_id: string;
+      tag_id: string;
+    }[]) {
+      (tagMap[row.task_id] ??= []).push(row.tag_id);
+    }
+    setTaskTagIds(tagMap);
+    setSavedViews(
+      ((sv.data ?? []) as unknown as {
+        id: string;
+        name: string;
+        filters: unknown;
+        sort: unknown;
+        group_by: string;
+        created_by: string | null;
+      }[]).map((r) => ({
+        id: r.id,
+        name: r.name,
+        created_by: r.created_by,
+        view: parseView({ filters: r.filters, sort: r.sort, group: r.group_by }),
+      }))
+    );
+    setFollowedTagIds(
+      new Set(((tf.data ?? []) as { tag_id: string }[]).map((r) => r.tag_id))
+    );
     setLoading(false);
-  }, [supabase, projectId]);
+  }, [supabase, projectId, meId]);
 
   useEffect(() => {
     const timer = setTimeout(load, 0);
@@ -165,6 +462,26 @@ export default function ProjectView({
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "profiles" },
+        schedule
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "field_definitions" },
+        schedule
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "task_field_values" },
+        schedule
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "tags" },
+        schedule
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "task_tags" },
         schedule
       )
       .subscribe();
@@ -240,12 +557,12 @@ export default function ProjectView({
     setTasks((prev) => [...prev, data as unknown as Task]);
   }
 
-  async function deleteTask(task: Task) {
+  async function deleteTask(task: Task): Promise<boolean> {
     const count = childrenOf.get(task.id)?.length ?? 0;
     const message = count
       ? `Delete "${task.name}" and its ${count} subtask${count === 1 ? "" : "s"}?`
       : `Delete "${task.name}"?`;
-    if (!window.confirm(message)) return;
+    if (!window.confirm(message)) return false;
     setTasks((prev) =>
       prev.filter((t) => t.id !== task.id && t.parent_task_id !== task.id)
     );
@@ -253,7 +570,9 @@ export default function ProjectView({
     if (error) {
       setError(error.message);
       load();
+      return false;
     }
+    return true;
   }
 
   function setStatus(task: Task, statusId: string) {
@@ -290,6 +609,88 @@ export default function ProjectView({
       else next.add(id);
       return next;
     });
+  }
+
+  async function setFieldValue(taskId: string, fieldId: string, value: unknown) {
+    setFieldValues((prev) => ({
+      ...prev,
+      [taskId]: { ...(prev[taskId] ?? {}), [fieldId]: value },
+    }));
+    const { error } = await supabase
+      .from("task_field_values")
+      .upsert(
+        { task_id: taskId, field_id: fieldId, value },
+        { onConflict: "task_id,field_id" }
+      );
+    if (error) {
+      setError(error.message);
+      load();
+    }
+  }
+
+  async function toggleTag(taskId: string, tagId: string) {
+    const current = taskTagIds[taskId] ?? [];
+    const has = current.includes(tagId);
+    setTaskTagIds((prev) => ({
+      ...prev,
+      [taskId]: has ? current.filter((x) => x !== tagId) : [...current, tagId],
+    }));
+    const { error } = has
+      ? await supabase
+          .from("task_tags")
+          .delete()
+          .eq("task_id", taskId)
+          .eq("tag_id", tagId)
+      : await supabase.from("task_tags").insert({ task_id: taskId, tag_id: tagId });
+    if (error) {
+      setError(error.message);
+      load();
+    }
+  }
+
+  async function createTag(taskId: string, name: string) {
+    const existing = allTags.find(
+      (t) => t.name.toLowerCase() === name.toLowerCase()
+    );
+    if (existing) {
+      if (!(taskTagIds[taskId] ?? []).includes(existing.id)) {
+        await toggleTag(taskId, existing.id);
+      }
+      return;
+    }
+    const palette = ["#2563eb", "#16a34a", "#d97706", "#dc2626", "#9333ea", "#0891b2", "#db2777", "#71717a"];
+    const { data, error } = await supabase
+      .from("tags")
+      .insert({ name, color: palette[allTags.length % palette.length] })
+      .select("id,name,color")
+      .single();
+    if (error || !data) {
+      setError(error?.message ?? "Could not create the tag.");
+      return;
+    }
+    setAllTags((prev) => [...prev, data as Tag]);
+    await toggleTag(taskId, (data as Tag).id);
+  }
+
+  async function saveView(name: string) {
+    const { error } = await supabase.from("saved_views").insert({
+      project_id: projectId,
+      name,
+      filters: view.filters,
+      sort: view.sort,
+      group_by: view.group,
+    });
+    if (error) setError(error.message);
+    else load();
+  }
+
+  async function deleteView(id: string) {
+    setSavedViews((prev) => prev.filter((v) => v.id !== id));
+    const { error } = await supabase.from("saved_views").delete().eq("id", id);
+    if (error) {
+      setError(error.message);
+      load();
+    }
   }
 
   /* section actions */
@@ -497,28 +898,169 @@ export default function ProjectView({
 
   /* rendering */
 
+  const display = useMemo(
+    () =>
+      buildDisplay({
+        tasks,
+        sections: sortedSections,
+        view,
+        ctx: {
+          meId,
+          statuses,
+          profiles,
+          tagIdsOf: (id) => taskTagIds[id] ?? [],
+        },
+        tags: allTags,
+      }),
+    [tasks, sortedSections, view, meId, statuses, profiles, taskTagIds, allTags]
+  );
+  const reorderable =
+    layout === "list" && view.group === "sections" && view.sort.key === "manual";
+  const calendarTasks = useMemo(() => {
+    const seen = new Map<string, Task>();
+    for (const g of display.groups) for (const t of g.tasks) seen.set(t.id, t);
+    for (const list of display.kids.values()) for (const t of list) seen.set(t.id, t);
+    return [...seen.values()];
+  }, [display]);
+  const filtersOn = activeFilterCount(view.filters) > 0;
+
+  const sortedFields = useMemo(() => [...fields].sort(byPosition), [fields]);
+  const visibleFields = sortedFields.filter((f) => f.visible);
+
+  const visibleCols: { key: ColKey; label: string; width: number }[] = [
+    ...BUILTINS.filter((k) => !cols.hidden.includes(k)).map((k) => ({
+      key: k as ColKey,
+      label: COLUMN_LABELS[k],
+      width: cols.widths[k] ?? BUILTIN_WIDTH[k],
+    })),
+    ...visibleFields.map((f) => ({
+      key: `f:${f.id}`,
+      label: f.name,
+      width: cols.widths[`f:${f.id}`] ?? f.width ?? FIELD_WIDTH[f.type],
+    })),
+  ];
+  const nameWidth = cols.widths.name;
+  const gridTemplate = [
+    `${NUM_WIDTH}px`,
+    nameWidth ? `${nameWidth}px` : `minmax(${NAME_FLEX_MIN}px, 1fr)`,
+    ...visibleCols.map((c) => `${c.width}px`),
+    `${ACTION_WIDTH}px`,
+  ].join(" ");
+  const tableMinWidth =
+    NUM_WIDTH +
+    (nameWidth ?? NAME_FLEX_MIN) +
+    visibleCols.reduce((sum, c) => sum + c.width, 0) +
+    ACTION_WIDTH;
+
+  function toggleColumn(key: BuiltinKey) {
+    setCols((c) => ({
+      ...c,
+      hidden: c.hidden.includes(key)
+        ? c.hidden.filter((k) => k !== key)
+        : [...c.hidden, key],
+    }));
+  }
+
+  async function toggleFieldVisible(field: FieldDef) {
+    setFields((prev) =>
+      prev.map((f) => (f.id === field.id ? { ...f, visible: !f.visible } : f))
+    );
+    const { error } = await supabase
+      .from("field_definitions")
+      .update({ visible: !field.visible })
+      .eq("id", field.id);
+    if (error) {
+      setError(error.message);
+      load();
+    }
+  }
+
+  function setWidth(key: ColKey, width: number) {
+    const next = Math.round(Math.min(MAX_WIDTH, Math.max(minWidth(key), width)));
+    setCols((c) => ({ ...c, widths: { ...c.widths, [key]: next } }));
+  }
+
+  function startResize(key: ColKey, e: React.PointerEvent<HTMLDivElement>) {
+    const cell = e.currentTarget.parentElement;
+    if (!cell) return;
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    resizing.current = {
+      key,
+      startX: e.clientX,
+      startWidth: cell.getBoundingClientRect().width,
+    };
+  }
+
+  function moveResize(e: React.PointerEvent<HTMLDivElement>) {
+    const r = resizing.current;
+    if (!r) return;
+    setWidth(r.key, r.startWidth + e.clientX - r.startX);
+  }
+
+  function endResize() {
+    resizing.current = null;
+  }
+
+  function keyResize(key: ColKey, e: React.KeyboardEvent<HTMLDivElement>) {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    e.preventDefault();
+    const cell = e.currentTarget.parentElement;
+    if (!cell) return;
+    const step = e.shiftKey ? 40 : 10;
+    const current = cell.getBoundingClientRect().width;
+    setWidth(key, current + (e.key === "ArrowRight" ? step : -step));
+  }
+
   const isOwner = project?.created_by === meId;
   const assignableIds =
     project?.visibility === "private" && project.created_by
       ? [project.created_by]
       : undefined;
 
+  const tagById = new Map(allTags.map((t) => [t.id, t]));
+  function tagsOf(taskId: string): Tag[] {
+    return (taskTagIds[taskId] ?? [])
+      .map((id) => tagById.get(id))
+      .filter((t): t is Tag => Boolean(t));
+  }
+
   function rowProps(task: Task, depth: 0 | 1): Omit<RowProps, "handle"> {
     return {
       task,
       depth,
+      rowNumber: display.numbering.get(task.id) ?? "",
+      columns: {
+        status: !cols.hidden.includes("status"),
+        assignee: !cols.hidden.includes("assignee"),
+        due: !cols.hidden.includes("due"),
+        tags: !cols.hidden.includes("tags"),
+      },
+      fields: visibleFields,
+      values: fieldValues[task.id] ?? {},
+      tags: tagsOf(task.id),
+      allTags,
+      onField: (fieldId, value) => setFieldValue(task.id, fieldId, value),
+      onToggleTag: (tagId) => toggleTag(task.id, tagId),
+      onCreateTag: (name) => createTag(task.id, name),
+      onManageTags: () => setEditingTags(true),
       statuses,
       profiles,
       assignableIds,
       done: Boolean(task.completed_at),
-      hasChildren: depth === 0 && (childrenOf.get(task.id)?.length ?? 0) > 0,
+      hasChildren: depth === 0 && (display.kids.get(task.id)?.length ?? 0) > 0,
       collapsed: collapsedTasks.has(task.id),
       onToggleCollapse: () => toggleSet(setCollapsedTasks, task.id),
-      onRename: (name) => updateTask(task.id, { name }),
+      onOpen: () => openTask(task.id),
       onStatus: (statusId) => setStatus(task, statusId),
       onAssignee: (assigneeId) => updateTask(task.id, { assignee_id: assigneeId }),
+      onDue: (patch) => updateTask(task.id, patch),
       onToggleComplete: () => toggleComplete(task),
-      onDelete: () => deleteTask(task),
+      onDelete: () => {
+        void deleteTask(task).then((ok) => {
+          if (ok && openTaskId === task.id) openTask(null);
+        });
+      },
       onAddSub:
         depth === 0
           ? () => {
@@ -549,15 +1091,20 @@ export default function ProjectView({
     );
   }
 
-  const containers: { id: string; section: Section | null }[] = [
-    { id: "none", section: null },
-    ...sortedSections.map((s) => ({ id: s.id, section: s })),
-  ];
   const activeTask = activeId ? tasks.find((t) => t.id === activeId) : undefined;
   const isEmpty = tasks.length === 0 && sections.length === 0;
 
+  /* The owner always sees their project colors. The other person sees them
+     only when the owner chose to share. */
+  const savedColors = parseProjectColors(project.appearance);
+  const shownColors =
+    previewColors ??
+    (isOwner || project.appearance_shared ? savedColors : {});
+  const pageStyle = projectStyle(shownColors) as React.CSSProperties;
+
   return (
-    <div className="mx-auto w-full max-w-4xl px-4 py-6">
+    <div className="min-h-screen" style={pageStyle}>
+    <div className="mx-auto w-full max-w-7xl px-4 py-6 md:px-6">
       <div className="flex items-center gap-2">
         {isOwner ? (
           <input
@@ -583,6 +1130,15 @@ export default function ProjectView({
           <MenuItem onClick={() => setEditingStatuses(true)}>
             Edit statuses
           </MenuItem>
+          <MenuItem onClick={() => setEditingFields(true)}>
+            Add or edit columns
+          </MenuItem>
+          <MenuItem onClick={() => setEditingTags(true)}>Edit tags</MenuItem>
+          {isOwner && (
+            <MenuItem onClick={() => setEditingColors(true)}>
+              Project colors
+            </MenuItem>
+          )}
           {isOwner && (
             <MenuItem
               onClick={() =>
@@ -634,12 +1190,177 @@ export default function ProjectView({
         />
       )}
 
+      {editingFields && (
+        <FieldsEditor
+          projectId={projectId}
+          fields={fields}
+          onClose={() => setEditingFields(false)}
+          onChanged={load}
+        />
+      )}
+
+      {editingColors && isOwner && (
+        <ProjectColorsEditor
+          projectId={projectId}
+          visibility={project.visibility}
+          initial={savedColors}
+          initialShared={Boolean(project.appearance_shared)}
+          onPreview={setPreviewColors}
+          onSaved={(colors, shared) =>
+            setProject((p) =>
+              p ? { ...p, appearance: colors, appearance_shared: shared } : p
+            )
+          }
+          onClose={() => setEditingColors(false)}
+        />
+      )}
+
+      {editingTags && (
+        <TagsEditor
+          tags={allTags}
+          followedIds={followedTagIds}
+          meId={meId}
+          onClose={() => setEditingTags(false)}
+          onChanged={load}
+        />
+      )}
+
       {isEmpty && (
         <p className="mt-4 text-sm opacity-60">
           This project is empty. Add your first task below, or add a section to
           group tasks.
         </p>
       )}
+
+      <div
+        role="radiogroup"
+        aria-label="Layout"
+        className="mt-4 inline-flex overflow-hidden rounded-md border border-current/20 text-sm"
+      >
+        {(
+          [
+            ["list", "List"],
+            ["calendar", "Calendar"],
+          ] as [Layout, string][]
+        ).map(([value, text]) => (
+          <button
+            key={value}
+            type="button"
+            role="radio"
+            aria-checked={layout === value}
+            onClick={() => setLayout(value)}
+            className={`px-4 py-1.5 ${
+              layout === value ? "bg-accent/15 font-medium" : "hover:bg-current/10"
+            }`}
+          >
+            {text}
+          </button>
+        ))}
+      </div>
+
+      <ViewToolbar
+        hideLayout={layout === "calendar"}
+        view={view}
+        onChange={setView}
+        meId={meId}
+        profiles={profiles}
+        statuses={statuses}
+        tags={allTags}
+        savedViews={savedViews}
+        onSaveView={saveView}
+        onDeleteView={deleteView}
+        shown={display.shown}
+        total={tasks.filter((t) => !t.parent_task_id).length}
+      />
+
+      {filtersOn && display.shown === 0 && (
+        <p className="mt-4 text-sm opacity-70">
+          No tasks match these filters.{" "}
+          <button
+            type="button"
+            onClick={() => setView(DEFAULT_VIEW)}
+            className="underline"
+          >
+            Reset view
+          </button>
+        </p>
+      )}
+
+      {layout === "calendar" && (
+        <CalendarView
+          tasks={calendarTasks}
+          statuses={statuses}
+          events={googleEvents}
+          onRange={setEventRange}
+          onOpenTask={(id) => openTask(id)}
+          onReschedule={(task, patch) => updateTask(task.id, patch)}
+        />
+      )}
+
+      {layout === "list" && (
+      <div className="mt-4 overflow-x-auto">
+        <div
+          className="md:min-w-[var(--min)]"
+          style={
+            {
+              "--cols": gridTemplate,
+              "--min": `${tableMinWidth}px`,
+            } as React.CSSProperties
+          }
+        >
+          <div
+            role="row"
+            className="hidden border-y border-current/15 text-xs font-medium opacity-80 md:grid md:[grid-template-columns:var(--cols)]"
+          >
+            <div role="columnheader" className="px-3 py-2 text-right opacity-70">
+              #
+            </div>
+            <HeaderCell label="Name" colKey="name" onStart={startResize} onMove={moveResize} onEnd={endResize} onKey={keyResize} />
+            {visibleCols.map((c) => (
+              <HeaderCell
+                key={c.key}
+                label={c.label}
+                colKey={c.key}
+                onStart={startResize}
+                onMove={moveResize}
+                onEnd={endResize}
+                onKey={keyResize}
+              />
+            ))}
+            <div
+              role="columnheader"
+              className="flex items-center justify-center border-l border-current/10"
+            >
+              <Menu
+                label="Show or hide columns"
+                trigger={<span className="text-lg">+</span>}
+              >
+                {BUILTINS.map((k) => (
+                  <MenuItem key={k} onClick={() => toggleColumn(k)}>
+                    {cols.hidden.includes(k) ? "Show " : "Hide "}
+                    {COLUMN_LABELS[k]}
+                  </MenuItem>
+                ))}
+                {sortedFields.map((f) => (
+                  <MenuItem key={f.id} onClick={() => toggleFieldVisible(f)}>
+                    {f.visible ? "Hide " : "Show "}
+                    {f.name}
+                  </MenuItem>
+                ))}
+                <MenuItem onClick={() => setEditingFields(true)}>
+                  Add or edit columns
+                </MenuItem>
+                <MenuItem onClick={() => setEditingTags(true)}>Edit tags</MenuItem>
+                <MenuItem
+                  onClick={() =>
+                    setCols((c) => ({ ...DEFAULT_COLS, hidden: c.hidden }))
+                  }
+                >
+                  Reset column widths
+                </MenuItem>
+              </Menu>
+            </div>
+          </div>
 
       <DndContext
         sensors={sensors}
@@ -648,22 +1369,57 @@ export default function ProjectView({
         onDragEnd={onDragEnd}
         onDragCancel={() => setActiveId(null)}
       >
-        {containers.map(({ id, section }) => {
-          const tops = topBySection.get(id) ?? [];
-          const collapsed = section ? collapsedSections.has(section.id) : false;
+        {display.groups.map((group) => {
+          const section = group.section ?? null;
+          const inSections = group.section !== undefined;
+          const tops = group.tasks;
+          const collapsible = Boolean(section) || !inSections;
+          const collapsed = collapsible ? collapsedSections.has(group.id) : false;
           const sectionIndex = section
             ? sortedSections.findIndex((s) => s.id === section.id)
             : -1;
 
+          const renderTask = (task: Task, sortable: boolean) => {
+            const kids = display.kids.get(task.id) ?? [];
+            const showKids = !collapsedTasks.has(task.id);
+            const extra = (
+              <>
+                {showKids &&
+                  kids.map((kid) => (
+                    <TaskRow key={kid.id} {...rowProps(kid, 1)} />
+                  ))}
+                {addingSubFor === task.id && (
+                  <AddInline
+                    autoFocus
+                    placeholder="Add a subtask"
+                    className="pl-[4.5rem] md:pl-[9.5rem]"
+                    onAdd={(name) => addTask(null, task.id, name)}
+                    onCancel={() => setAddingSubFor(null)}
+                  />
+                )}
+              </>
+            );
+            return sortable ? (
+              <SortableTask key={task.id} {...rowProps(task, 0)}>
+                {extra}
+              </SortableTask>
+            ) : (
+              <div key={`${group.id}:${task.id}`}>
+                <TaskRow {...rowProps(task, 0)} />
+                {extra}
+              </div>
+            );
+          };
+
           return (
-            <section key={id} className="mt-6">
+            <section key={group.id} className="mt-6">
               <div className="flex items-center gap-1">
-                {section ? (
+                {collapsible ? (
                   <button
                     type="button"
-                    aria-label={collapsed ? "Expand section" : "Collapse section"}
+                    aria-label={collapsed ? "Expand group" : "Collapse group"}
                     aria-expanded={!collapsed}
-                    onClick={() => toggleSet(setCollapsedSections, section.id)}
+                    onClick={() => toggleSet(setCollapsedSections, group.id)}
                     className="flex size-7 items-center justify-center rounded text-xs opacity-60 hover:bg-current/10 hover:opacity-100"
                   >
                     {collapsed ? "▸" : "▾"}
@@ -690,7 +1446,7 @@ export default function ProjectView({
                   />
                 ) : (
                   <h2 className="flex-1 px-1.5 py-1 text-base font-semibold">
-                    Tasks
+                    {group.label}
                   </h2>
                 )}
                 <span className="text-xs opacity-50">{tops.length}</span>
@@ -715,44 +1471,48 @@ export default function ProjectView({
                 )}
               </div>
 
-              {!collapsed && (
-                <DropContainer id={id}>
-                  <SortableContext
-                    items={tops.map((t) => t.id)}
-                    strategy={verticalListSortingStrategy}
-                  >
-                    {tops.map((task) => {
-                      const kids = childrenOf.get(task.id) ?? [];
-                      const showKids = !collapsedTasks.has(task.id);
-                      return (
-                        <SortableTask key={task.id} {...rowProps(task, 0)}>
-                          {showKids &&
-                            kids.map((kid) => (
-                              <TaskRow key={kid.id} {...rowProps(kid, 1)} />
-                            ))}
-                          {addingSubFor === task.id && (
-                            <AddInline
-                              autoFocus
-                              placeholder="Add a subtask"
-                              className="pl-[4.5rem]"
-                              onAdd={(name) => addTask(null, task.id, name)}
-                              onCancel={() => setAddingSubFor(null)}
-                            />
-                          )}
-                        </SortableTask>
-                      );
-                    })}
-                  </SortableContext>
-                  <AddInline
-                    placeholder="Add a task"
-                    className="pl-[3.25rem]"
-                    onAdd={(name) => addTask(section ? section.id : null, null, name)}
-                  />
-                </DropContainer>
-              )}
+              {!collapsed &&
+                (reorderable ? (
+                  <DropContainer id={group.id}>
+                    <SortableContext
+                      items={tops.map((t) => t.id)}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      {tops.map((task) => renderTask(task, true))}
+                    </SortableContext>
+                    <AddInline
+                      placeholder="Add a task"
+                      className="pl-[3.25rem] md:pl-[7.5rem]"
+                      onAdd={(name) =>
+                        addTask(section ? section.id : null, null, name)
+                      }
+                    />
+                  </DropContainer>
+                ) : (
+                  <div className="min-h-10">
+                    {tops.map((task) => renderTask(task, false))}
+                    {inSections && (
+                      <AddInline
+                        placeholder="Add a task"
+                        className="pl-[3.25rem] md:pl-[7.5rem]"
+                        onAdd={(name) =>
+                          addTask(section ? section.id : null, null, name)
+                        }
+                      />
+                    )}
+                  </div>
+                ))}
             </section>
           );
         })}
+
+        {view.group !== "sections" && (
+          <AddInline
+            placeholder="Add a task"
+            className="mt-4 pl-[3.25rem] md:pl-[7.5rem]"
+            onAdd={(name) => addTask(null, null, name)}
+          />
+        )}
 
         <DragOverlay>
           {activeTask ? (
@@ -762,7 +1522,56 @@ export default function ProjectView({
           ) : null}
         </DragOverlay>
       </DndContext>
+        </div>
+      </div>
+      )}
 
+      {openTaskId &&
+        (() => {
+          const open = tasks.find((t) => t.id === openTaskId);
+          if (!open) return null;
+          return (
+            <TaskPanel
+              key={open.id}
+              task={open}
+              parent={
+                open.parent_task_id
+                  ? (tasks.find((t) => t.id === open.parent_task_id) ?? null)
+                  : null
+              }
+              subtasks={childrenOf.get(open.id) ?? []}
+              meId={meId}
+              statuses={statuses}
+              profiles={profiles}
+              assignableIds={assignableIds}
+              columns={{
+                status: !cols.hidden.includes("status"),
+                assignee: !cols.hidden.includes("assignee"),
+                due: !cols.hidden.includes("due"),
+                tags: !cols.hidden.includes("tags"),
+              }}
+              fields={visibleFields}
+              values={fieldValues[open.id] ?? {}}
+              tags={tagsOf(open.id)}
+              allTags={allTags}
+              onField={(fieldId, value) => setFieldValue(open.id, fieldId, value)}
+              onToggleTag={(tagId) => toggleTag(open.id, tagId)}
+              onCreateTag={(name) => createTag(open.id, name)}
+              onManageTags={() => setEditingTags(true)}
+              onClose={() => openTask(null)}
+              onOpenTask={(id) => openTask(id)}
+              onUpdate={(id, patch) => updateTask(id, patch)}
+              onStatus={(t, statusId) => setStatus(t, statusId)}
+              onToggleComplete={(t) => toggleComplete(t)}
+              onAddSubtask={(name) => addTask(null, open.id, name)}
+              onDelete={async (t) => {
+                if (await deleteTask(t)) openTask(null);
+              }}
+            />
+          );
+        })()}
+
+      {layout === "list" && (
       <div className="mt-8 border-t border-current/10 pt-4">
         <AddInline
           placeholder="Add a section"
@@ -770,6 +1579,8 @@ export default function ProjectView({
           className="max-w-xs"
         />
       </div>
+      )}
+    </div>
     </div>
   );
 }

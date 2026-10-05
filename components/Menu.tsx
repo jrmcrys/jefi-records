@@ -5,9 +5,11 @@ import { useEffect, useRef, useState } from "react";
 export default function Menu({
   children,
   label = "More actions",
+  trigger = "⋯",
 }: {
   children: React.ReactNode;
   label?: string;
+  trigger?: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -36,7 +38,7 @@ export default function Menu({
         onClick={() => setOpen((o) => !o)}
         className="flex size-8 items-center justify-center rounded-md text-lg leading-none opacity-60 hover:bg-current/10 hover:opacity-100"
       >
-        {"⋯"}
+        {trigger}
       </button>
       {open && (
         <div

@@ -5,6 +5,12 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { Profile } from "@/lib/types";
 import Avatar from "./Avatar";
+import AppearanceSettings from "./AppearanceSettings";
+import GoogleCalendarSettings from "./GoogleCalendarSettings";
+import NotificationSettings from "./NotificationSettings";
+import BackupExport from "./BackupExport";
+import type { Appearance } from "@/lib/theme";
+import type { LinkOpen, UserPrefs } from "@/lib/google";
 
 const AVATAR_BUCKET = "avatars";
 const AVATAR_SIZE = 256;
@@ -38,13 +44,25 @@ function storagePathFromUrl(url: string | null | undefined): string | null {
   return i === -1 ? null : decodeURIComponent(url.slice(i + marker.length));
 }
 
-export default function SettingsForm({ me }: { me: Profile }) {
+export default function SettingsForm({
+  me,
+  otherName,
+  appearance,
+  prefs,
+}: {
+  me: Profile;
+  otherName: string;
+  appearance: Appearance;
+  prefs: UserPrefs;
+}) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
   const [name, setName] = useState(me.name);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(
     me.avatar_url ?? null
   );
+  const [currentPrefs, setCurrentPrefs] = useState<UserPrefs>(prefs);
+  const linkOpen = currentPrefs.linkOpen;
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -70,6 +88,30 @@ export default function SettingsForm({ me }: { me: Profile }) {
     }
     setMessage("Name saved.");
     router.refresh();
+  }
+
+  async function savePrefs(patch: Partial<UserPrefs>): Promise<boolean> {
+    const previous = currentPrefs;
+    const next = { ...currentPrefs, ...patch };
+    setCurrentPrefs(next);
+    setError(null);
+    setMessage(null);
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("profiles")
+      .update({ prefs: next })
+      .eq("id", me.id);
+    if (error) {
+      setCurrentPrefs(previous);
+      setError(error.message);
+      return false;
+    }
+    setMessage("Saved.");
+    return true;
+  }
+
+  function saveLinkOpen(value: LinkOpen) {
+    void savePrefs({ linkOpen: value });
   }
 
   async function onPickPhoto(e: React.ChangeEvent<HTMLInputElement>) {
@@ -209,6 +251,41 @@ export default function SettingsForm({ me }: { me: Profile }) {
         </p>
       </section>
 
+      <section className="mt-8">
+        <h2 className="text-sm font-medium">Docs and Sheets</h2>
+        <p className="mt-1 text-xs opacity-60">
+          Choose what happens when you open a Google Doc or Sheet from the lists. You can
+          always pick the other way from the menu next to a file.
+        </p>
+        <div role="radiogroup" aria-label="Open Docs and Sheets" className="mt-3 space-y-2">
+          {(
+            [
+              ["embed", "Open inside Jefi Records", "Shows the file in the app. Google may ask you to sign in."],
+              ["google", "Open in Google", "Opens the file in a new browser tab."],
+            ] as [LinkOpen, string, string][]
+          ).map(([value, title, hint]) => (
+            <label
+              key={value}
+              className={`flex cursor-pointer items-start gap-3 rounded-md border px-3 py-2 ${
+                linkOpen === value ? "border-accent bg-accent/10" : "border-current/20"
+              }`}
+            >
+              <input
+                type="radio"
+                name="link-open"
+                checked={linkOpen === value}
+                onChange={() => saveLinkOpen(value)}
+                className="mt-1 accent-accent"
+              />
+              <span>
+                <span className="block text-sm">{title}</span>
+                <span className="block text-xs opacity-60">{hint}</span>
+              </span>
+            </label>
+          ))}
+        </div>
+      </section>
+
       {message && (
         <p role="status" className="mt-6 text-sm">
           {message}
@@ -219,6 +296,23 @@ export default function SettingsForm({ me }: { me: Profile }) {
           {error}
         </p>
       )}
+
+      <NotificationSettings
+        userId={me.id}
+        notify={currentPrefs.notify}
+        onChange={(notify) => savePrefs({ notify })}
+      />
+
+      <GoogleCalendarSettings
+        userId={me.id}
+        otherName={otherName}
+        showShared={currentPrefs.showSharedCalendars}
+        onShowShared={(value) => savePrefs({ showSharedCalendars: value })}
+      />
+
+      <AppearanceSettings userId={me.id} initial={appearance} />
+
+      <BackupExport />
     </div>
   );
 }

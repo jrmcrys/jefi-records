@@ -235,7 +235,7 @@ export default function StatusEditor({
                     type="checkbox"
                     checked={s.is_done}
                     onChange={(e) => patch(s.id, { is_done: e.target.checked })}
-                    className="size-4 accent-current"
+                    className="size-4 accent-accent"
                   />
                   Counts as done
                 </label>

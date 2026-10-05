@@ -1,3 +1,5 @@
+import type { Recurrence } from "./recurrence";
+
 export type Profile = {
   id: string;
   name: string;
@@ -14,9 +16,14 @@ export type Project = {
   position: number;
   visibility: Visibility;
   created_by: string;
+  /* Only loaded on the project page. */
+  appearance?: unknown;
+  appearance_shared?: boolean;
 };
 
 export const PROJECT_COLUMNS = "id,name,archived,position,visibility,created_by";
+
+export const PROJECT_PAGE_COLUMNS = `${PROJECT_COLUMNS},appearance,appearance_shared`;
 
 export const PROFILE_COLUMNS = "id,name,email,avatar_url";
 
@@ -45,10 +52,50 @@ export type Task = {
   status_id: string | null;
   assignee_id: string | null;
   due_at: string | null;
+  due_has_time: boolean;
+  recurrence: Recurrence | null;
   completed_at: string | null;
   position: number;
   created_at: string;
 };
 
 export const TASK_COLUMNS =
-  "id,project_id,section_id,parent_task_id,name,status_id,assignee_id,due_at,completed_at,position,created_at";
+  "id,project_id,section_id,parent_task_id,name,status_id,assignee_id,due_at,due_has_time,recurrence,completed_at,position,created_at";
+
+export type FieldType =
+  | "dropdown"
+  | "multi_select"
+  | "text"
+  | "number"
+  | "url"
+  | "checkbox"
+  | "person";
+
+export const FIELD_TYPE_LABELS: Record<FieldType, string> = {
+  dropdown: "Dropdown",
+  multi_select: "Multi-select",
+  text: "Text",
+  number: "Number",
+  url: "Link",
+  checkbox: "Checkbox",
+  person: "Person",
+};
+
+export type FieldOption = { id: string; name: string; color: string };
+
+export type FieldDef = {
+  id: string;
+  project_id: string;
+  name: string;
+  type: FieldType;
+  options: FieldOption[];
+  position: number;
+  visible: boolean;
+  width: number | null;
+};
+
+export const FIELD_COLUMNS = "id,project_id,name,type,options,position,visible,width";
+
+export type Tag = { id: string; name: string; color: string };
+
+export type FieldValues = Record<string, unknown>;

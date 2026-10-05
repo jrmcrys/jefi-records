@@ -1,6 +1,7 @@
 import { type EmailOtpType } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { NEXT_COOKIE, nextFromCookie } from "@/lib/next-path";
 
 /*
  * Magic link landing route. Works on any device or browser, which matters
@@ -20,7 +21,11 @@ export async function GET(request: NextRequest) {
       token_hash: tokenHash,
     });
     if (!error) {
-      return NextResponse.redirect(new URL("/", origin));
+      const res = NextResponse.redirect(
+        new URL(nextFromCookie(request.cookies.get(NEXT_COOKIE)?.value), origin)
+      );
+      res.cookies.delete(NEXT_COOKIE);
+      return res;
     }
   }
 

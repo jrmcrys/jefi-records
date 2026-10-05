@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import type { Profile, Project, Visibility } from "@/lib/types";
 import Avatar from "./Avatar";
 import Menu, { MenuItem } from "./Menu";
+import InboxLink from "./InboxLink";
 
 function LockIcon() {
   return (
@@ -99,6 +100,24 @@ export default function AppShell({
     else router.refresh();
   }
 
+  async function deleteProjectForever(p: Project) {
+    const typed = window.prompt(
+      `This permanently deletes "${p.name}" with all of its tasks, comments and files. It cannot be undone.\n\nType the project name to confirm.`
+    );
+    if (typed === null) return;
+    if (typed.trim() !== p.name.trim()) {
+      setError("The name did not match, so nothing was deleted.");
+      return;
+    }
+    const supabase = createClient();
+    const { error } = await supabase.from("projects").delete().eq("id", p.id);
+    if (error) setError(error.message);
+    else {
+      setError(null);
+      router.refresh();
+    }
+  }
+
   async function moveProject(id: string, dir: -1 | 1) {
     const i = active.findIndex((p) => p.id === id);
     const j = i + dir;
@@ -141,7 +160,7 @@ export default function AppShell({
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-current/10 bg-background p-4 transition-transform md:sticky md:top-0 md:h-screen md:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-current/10 bg-sidebar p-4 transition-transform md:sticky md:top-0 md:h-screen md:translate-x-0 ${
           drawerOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -160,7 +179,38 @@ export default function AppShell({
         </div>
 
         <nav className="mt-6 flex-1 overflow-y-auto" aria-label="Projects">
-          <p className="px-2 text-xs font-medium uppercase tracking-wide opacity-50">
+          <InboxLink
+            meId={me.id}
+            active={pathname === "/inbox"}
+            onNavigate={() => setDrawerOpen(false)}
+          />
+          <Link
+            href="/my-tasks"
+            onClick={() => setDrawerOpen(false)}
+            className={`mb-1 flex items-center rounded-md px-2 py-2 text-sm hover:bg-current/10 ${
+              pathname === "/my-tasks" ? "bg-current/10 font-medium" : ""
+            }`}
+          >
+            My tasks
+          </Link>
+          {(
+            [
+              ["/docs", "Docs"],
+              ["/sheets", "Sheets"],
+            ] as const
+          ).map(([href, text]) => (
+            <Link
+              key={href}
+              href={href}
+              onClick={() => setDrawerOpen(false)}
+              className={`mb-1 flex items-center rounded-md px-2 py-2 text-sm hover:bg-current/10 ${
+                pathname === href ? "bg-current/10 font-medium" : ""
+              }`}
+            >
+              {text}
+            </Link>
+          ))}
+          <p className="mt-4 px-2 text-xs font-medium uppercase tracking-wide opacity-50">
             Projects
           </p>
           <ul className="mt-2 space-y-0.5">
@@ -234,7 +284,7 @@ export default function AppShell({
                       onClick={() => setVisibility(value)}
                       className={`flex-1 px-2 py-1.5 ${
                         visibility === value
-                          ? "bg-current/15 font-medium"
+                          ? "bg-accent/15 font-medium"
                           : "opacity-70 hover:bg-current/10"
                       }`}
                     >
@@ -244,7 +294,7 @@ export default function AppShell({
                 </div>
                 <button
                   type="submit"
-                  className="rounded-md border border-current/20 px-2 py-1.5 text-xs hover:border-current/50"
+                  className="rounded-md bg-accent px-2.5 py-1.5 text-xs font-medium text-white"
                 >
                   Create
                 </button>
@@ -266,13 +316,22 @@ export default function AppShell({
                   >
                     <span className="truncate opacity-70">{p.name}</span>
                     {p.created_by === me.id && (
-                      <button
-                        type="button"
-                        onClick={() => restoreProject(p.id)}
-                        className="shrink-0 text-xs underline opacity-70 hover:opacity-100"
-                      >
-                        Restore
-                      </button>
+                      <span className="flex shrink-0 items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => restoreProject(p.id)}
+                          className="text-xs underline opacity-70 hover:opacity-100"
+                        >
+                          Restore
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => deleteProjectForever(p)}
+                          className="text-xs text-red-500 underline opacity-80 hover:opacity-100"
+                        >
+                          Delete
+                        </button>
+                      </span>
                     )}
                   </li>
                 ))}
